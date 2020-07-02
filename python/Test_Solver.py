@@ -9,7 +9,7 @@ class TestPDE(object):
     #It represents the system
     # y^2-3x-2y = 0
     # x^2-3y-2x = 0
-    #The exact solution is x=y=5 or x=y=0
+    #The exact solutions are x=y=5 or x=y=0
     def __init__(self):
         self.x = np.array([0,0])
     def G(self,x):

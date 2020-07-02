@@ -24,8 +24,6 @@ class InexactNewtonTimeInt(object):
         nGxmm1 = 1
         epsa   = math.sqrt(ndof)*(10**(-15))
         epst   = epsa+self.epsr*n2(G(x0))
-        print('xm=')
-        print(xm)
         for i in range(maxiter):
             print(i)
             nGxm = n2(G(xm))
