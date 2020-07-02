@@ -1,3 +1,4 @@
+import numpy as np
 #Attributes:
 #Nodes is a list of the coordinates of the nodes
 #EdgeNodes are a list of the edges, each element of this list is a pair with the each component being the position of the node in Nodes
@@ -12,6 +13,9 @@ class HeliosMesh(object):
         self.ElementEdges  = ElementEdges
         self.BoundaryNodes = BoundaryNodes
         self.Orientations  = Orientations
+
+        self.MakeDictionaries()
+        self.MakeIntNodes()
     #MakeDictionaries creates two lists NodestoCells and EdgestoCells. 
     #NodestoCells will, given the position of a node in Nodes, return a list of the cells that have such a node.
     #EdgestoCells will, likewise, return the list of cells that have each edge.
@@ -29,3 +33,8 @@ class HeliosMesh(object):
                     self.NodestoCells[Node1].append(c)
                 if c not in self.NodestoCells[Node2]:
                     self.NodestoCells[Node2].append(c)
+    
+    def MakeIntNodes(self):
+        numnodes           = len(self.Nodes)
+        AllNodes           = [i for i in range(numnodes)] 
+        self.InternalNodes = np.setdiff1d(AllNodes,self.BoundaryNodes)

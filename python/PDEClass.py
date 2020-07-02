@@ -3,24 +3,27 @@ import math
 import numpy as np
 
 class PDEFullMHD(object):
-    def __init__(self,Mesh,Re,Rm,Inu,InB,dt,T):
+    def __init__(self,Mesh,Re,Rm,Inu,InB,dt):
         self.Mesh = Mesh
-        self.Mesh.MakeDictionaries()
         self.Re   = Re
         self.Rm   = Rm
-        self.u    = Inu #initial velocity
-        self.T    = T   #Final time
         self.dt   = dt  #time step size
 
         #We initialize the dofs
-        N1              = len(Mesh.Nodes)
-        N2              = len(Mesh.ElementEdges)
-        self.p          = np.zeros(N1) 
-        self.E          = np.zeros(N2)
-        self.B          = self.CIMagDOFs(InB) #initial mag field
-        self.ux,self.uy = self.CIVelDOFs(Inu)         #initial vel field
-        
+        self.CIVelDOFs(Inu)
+        self.B          = self.CIMagDOFs(InB)
+        self.p          = np.zeros(len(Mesh.ElementEdges))
 
+        self.Ei = np.zeros(len(self.Mesh.InternalNodes))
+        self.Eb = np.zeros(len(self.Mesh.BoundaryNodes))
+
+        #The boundary values on the vel and elec fields are decoupled from the
+        #internal values. Thus, we will keep track of 8 arrays, they are:
+        # internal and boundary for ux and uy, internal and boudary for elec field,
+        #the pressure and magnetic field.
+    ##################################################################################
+    ##################################################################################    
+    #Initiation of Boundary Conditions/DifferentTypes of Simulations
     def ConvTestBoundarySourceCond(self,f,g,h,Bb,Eb):
         self.f  = f  #momentum eq source 
         self.g  = g  #Faraday source
@@ -28,6 +31,9 @@ class PDEFullMHD(object):
         self.Bb = Bb #Boundary Cond
         self.Eb = Eb
 
+    ##################################################################################
+    ##################################################################################    
+    #Initiation of Boundary Conditions/DifferentTypes of Simulations
     def CIMagDOFs(self,Func):
     #This computes the dofs of the initial magnetic field
         N    = len(self.Mesh.EdgeNodes)
@@ -76,19 +82,43 @@ class PDEFullMHD(object):
         return proj
 
     def CIVelDOFs(self,Func):
-        N  = len(self.Mesh.Nodes)
-        ux = np.zeros(N)
-        uy = np.zeros(N)
-        for i in range(N):
+        #This function computes the dof of the init cond on the vel field.
+        intN   = len(self.Mesh.InternalNodes)
+        
+        self.uxi   = np.zeros(intN)
+        self.uyi   = np.zeros(intN)
+        j = 0
+        for i in self.Mesh.InternalNodes:
             Node  = self.Mesh.Nodes[i]
             x     = Node[0]
             y     = Node[1]
 
-            insux,insuy = Func(x,y)
-            ux[i] = insux
-            uy[i] = insuy
-        return ux,uy
-    
+            self.uxi[j],self.uyi[j] = Func(x,y)
+            j     = j+1
+
+        boundN = len(self.Mesh.BoundaryNodes)
+        self.uxb = np.zeros(boundN)
+        self.uyb = np.zeros(boundN)
+        j = 0
+        for i in self.Mesh.BoundaryNodes:
+            Node  = self.Mesh.Nodes[i]
+            x     = Node[0]
+            y     = Node[1]
+
+            self.uxb[j],self.uyb[j] = Func(x,y)
+            j     = j+1
+
+
+
+    ##################################################################################
+    ##################################################################################    
+    #These functions work as an interface with the solver class.
     def Concatenate(self):
         x = np.concatenate(self.ux,self.uy,self.B,self.E,self.p)
+        return x
+    
+    def NumUnknownDOFDirichlet(self):
+        return (3*len(self.uxi)+3*len(self.Eb)+len(self.p)+len(self.B))
+
+    def GDirichlet(self,x):
         return x
