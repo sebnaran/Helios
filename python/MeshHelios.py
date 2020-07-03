@@ -7,15 +7,17 @@ import numpy as np
 #Each element in Ortientations corresponds to the element in the same spot in ElementEdges. A 1 is placed in the ordering of the edge
 #accords with the divergence Theorem. A -1 is placed if this is not the case.
 class HeliosMesh(object):
-    def __init__(self,Nodes,EdgeNodes,ElementEdges,BoundaryNodes,Orientations):
-        self.Nodes         = Nodes
-        self.EdgeNodes     = EdgeNodes
-        self.ElementEdges  = ElementEdges
-        self.BoundaryNodes = BoundaryNodes
+    def __init__(self,Nodes,EdgeNodes,ElementEdges,NumBoundaryNodes,Orientations):
+        self.Nodes            = Nodes
+        self.EdgeNodes        = EdgeNodes
+        self.ElementEdges     = ElementEdges
+        self.NumBoundaryNodes = NumBoundaryNodes
+        self.BNodes           = [Nodes[i] for i in NumBoundaryNodes]
         self.Orientations  = Orientations
 
+
         self.MakeDictionaries()
-        self.MakeIntNodes()
+        self.MakeNumIntNodes()
     #MakeDictionaries creates two lists NodestoCells and EdgestoCells. 
     #NodestoCells will, given the position of a node in Nodes, return a list of the cells that have such a node.
     #EdgestoCells will, likewise, return the list of cells that have each edge.
@@ -34,7 +36,7 @@ class HeliosMesh(object):
                 if c not in self.NodestoCells[Node2]:
                     self.NodestoCells[Node2].append(c)
     
-    def MakeIntNodes(self):
+    def MakeNumIntNodes(self):
         numnodes           = len(self.Nodes)
         AllNodes           = [i for i in range(numnodes)] 
-        self.InternalNodes = np.setdiff1d(AllNodes,self.BoundaryNodes)
+        self.NumInternalNodes = np.setdiff1d(AllNodes,self.NumBoundaryNodes)

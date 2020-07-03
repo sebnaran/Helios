@@ -8,12 +8,13 @@ def test_init():
     BoundaryNodes = [0,1,2,3,5,6,7,8] 
     Orientations  = [[1,-1,-1,1],[1,-1,-1,-1],[1,1,-1,-1],[1,-1,-1,-1]]
     TestMesh      = HeliosMesh(Nodes,EdgeNodes,ElementEdges,BoundaryNodes,Orientations)
-    def Inu(x,y):
-        return 1,1
-    def InB(x,y):
-        return 1,1
+    def Inu(xv):
+        return np.array([1,1])
+    def InB(xv):
+        return np.array([1,1])
     Re = 1
     Rm = 1
     dt = 0.5
-    testPDE = PDEFullMHD(TestMesh,Re,Rm,Inu,InB,dt)
-    assert (np.all(testPDE.uxb == np.array([1,1,1,1,1,1,1,1])))
+    theta = 0.5
+    testPDE = PDEFullMHD(TestMesh,Re,Rm,Inu,InB,dt,theta)
+    assert (np.all(testPDE.ux == np.array([1,1,1,1,1,1,1,1,1])))
