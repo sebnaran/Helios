@@ -25,12 +25,14 @@ def ub(xvt):
     return np.array([1,1])
 def Eb(xvt):
     return 1
+
 PDE    = PDEFullMHD(TestMesh,Re,Rm,Inu,InB,dt,theta)
 PDE.SetConvTestBCAndSource(f,g,h,ub,Eb)
 Solver = InexactNewtonTimeInt()
 time   = np.arange(0,T,dt)
 
 for t in time:
+    PDE.DirichletupdateBC(t)
     tempx = Solver.Newtoniter(PDE.GDirichlet,PDE.DirichletConcatenate(),PDE.NumDirichletDOF(),1E-5,50)
     PDE.DirichletUpdateInterior(tempx)
-    PDE.DirichletupdateBC()
+    

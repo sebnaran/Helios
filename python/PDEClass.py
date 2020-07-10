@@ -1,4 +1,5 @@
 from MeshHelios import HeliosMesh
+
 import math
 import numpy as np
 
@@ -25,12 +26,21 @@ class PDEFullMHD(object):
         self.B          = self.MagDOFs(InB)
         self.p          = np.zeros(len(Mesh.ElementEdges))
         self.E          = np.zeros(len(self.Mesh.Nodes))
+        
+        self.MEList     = []
+        self.MVList     = []
+        for i in len(self.Mesh.ElementEdges):
+            tempME,tempMV = self.ElecMagStandMassMat(self.Mesh.ElementEdges[i],self.Mesh.Orientations[i])
+            self.MEList.append(tempME)
+            self.MVList.append(tempMV)
     ##################################################################################
     ##################################################################################    
     #Initiation of Boundary Conditions/DifferentTypes of Simulations and their updates
     def SetConvTestBCAndSource(self,f,g,h,ub,Eb):
         self.f, self.g, self.h, self.ub, self.Eb = f, g, h, ub, Eb  #source terms and BC
         self.DirichletUpdateSources( self.theta*self.dt) #Initiatiates, assumes that this was done at the init time
+
+        
         #The expectation is that all these functions return np.arrays
 
     #The following routines update the dofs of the bc and sources
@@ -61,18 +71,23 @@ class PDEFullMHD(object):
             return self.ub([xv[0],xv[1],t+self.dt*self.theta])
         def dummyEb(xv):
             return self.Eb([xv[0],xv[1],t])
-        tempubn   = self.NodalDOFs(dummyubn,self.Mesh.BNodes)
-        tempEb    = self.NodalDOFs(dummyEb,self.Mesh.BNodes)
-        tempubnp1 = self.NodalDOFs(dummyubn,self.Mesh.BNodes)
+   
+        tempubn               = self.NodalDOFs(dummyubn,self.Mesh.BNodes)
+        tempubnx,tempubny     = self.DecompIntoCoord(tempubn)
+        #tempubnp1             = self.NodalDOFs(dummyubnp1,self.Mesh.BNodes)
+        #tempubnp1x,tempubnp1y = self.DecompIntoCoord(temp1ubnp1)
+        tempEb                = self.NodalDOFs(dummyEb,self.Mesh.BNodes)
+        
         j = 0
         for i in self.Mesh.NumBoundaryNodes:
-            self.ux[i] = tempub[j][0]
-            self.uy[i] = tempub[j][1]
+            self.ux[i] = tempubnx[j]
+            self.uy[i] = tempubny[j]
             self.E[i]  = tempEb[j]
             j = j+1
+        
     ##################################################################################
     ##################################################################################    
-    #Initiation of Boundary Conditions/DifferentTypes of Simulations
+    #Compute DOFs from func
     def NodalDOFs(self,Func,Nodes):
         #This function computes the dof of the init cond on the vel field.
         return np.array([Func(Node) for Node in Nodes])
@@ -144,3 +159,87 @@ class PDEFullMHD(object):
     def GDirichlet(self,x):
         return x
     
+    #########################################################################################
+    #########################################################################################
+    #The following routines will, given a cell compute each of the bilinear forms in the var form.
+    #Construct MFD-type matrices
+    def LocalMassMatrix(self,N,R,n,A):
+        #Given the matrices N,R as defined in Ch.4 of MFD book and the dimension
+        #of the reconstruction space this function assembles the local mass matrix
+        #The formula is M=M0+M1 where M0=R(N^T R)^-1R^T and M1=lamb*DD^T where the 
+        #columns of D span the null-space of N^T and lamb=2*trace(M0)/n 
+        #n is the dimension of the reconstruction space
+        #nu is the average, over the element, of the diffusion coefficient
+        #A is the area of the element
+    
+        #These commands compute M0
+        M0    = np.matmul(np.transpose(N),R) 
+        M0    = np.linalg.inv(M0)
+        M0    = np.matmul(R,M0)
+        M0    = np.matmul(M0,np.transpose(R))
+    
+        M1    = np.linalg.inv(np.transpose(N).dot(N))
+        M1    = np.identity(n)-N.dot(M1).dot(np.transpose(N))
+    
+        gamma = np.trace(R.dot(np.transpose(R)))/(n*A)
+        #And finally we put the two matrices together
+        return M0+M1*gamma
+
+    ############Electromagnetics
+    def ElecMagStandMassMat(self,Element,Ori):
+        n                = len(Element)
+        NE               = np.zeros((n,2))
+        RE               = np.zeros((n,2))
+        xP,yP,A,Vertices,Edges = self.Mesh.Centroid(Element,Ori)
+        for i in range(n):
+            x1 = Vertices[i][0]
+            y1 = Vertices[i][1]
+            x2 = Vertices[i+1][0]
+            y2 = Vertices[i+1][1]
+            lengthEdge = math.sqrt((x2-x1)**2+(y2-y1)**2)
+            NE[i][0] = (y2-y1)*Ori[i]*lengthEdge**-1
+            NE[i][1] = (x1-x2)*Ori[i]*lengthEdge**-1
+            RE[i][0] = (0.5*(x1+x2)-xP)*Ori[i]*lengthEdge #These formulas are derived in the tex-document
+            RE[i][1] = (0.5*(y1+y2)-yP)*Ori[i]*lengthEdge
+        
+        NV = np.ones( (n,1))
+        RV = np.zeros((n,1))
+        
+        x1n = Vertices[n-1][0] #first vertex of n-1th-edge
+        y1n = Vertices[n-1][1]
+    
+        x2n = Vertices[0][0]
+        y2n = Vertices[0][1] #second vertex of n-1th edge
+    
+        x11 = x2n #first vertex of first edge
+        y11 = y2n
+    
+        x21 = Vertices[1][0]
+        y21 = Vertices[1][1]  #second vertex of first edge
+    
+        omegan2 = (x2n-x1n)*((yP-y2n)+(2*yP-y1n-y2n))/6
+        omega11 = (x21-x11)*((yP-y11)+(2*yP-y11-y21))/6
+        RV[0] = omegan2+omega11
+   
+        for i in range(1,n):
+        
+            x1iminusone = Vertices[i-1][0] #first vertex of i-1th-edge
+            y1iminusone = Vertices[i-1][1]
+               
+            x2iminusone = Vertices[i][0]    
+            y2iminusone = Vertices[i][1] #second vertex of i-1th edge
+
+            x1i = x2iminusone #first vertex of i+1 edge
+            y1i = y2iminusone
+    
+            x2i = Vertices[i+1][0] #second vertex of i+1 edge
+            y2i = Vertices[i+1][1]  
+        
+            omega2iminusone = (x2iminusone-x1iminusone)*((yP-y2iminusone)+\
+                                                   (2*yP-y1iminusone-y2iminusone))/6
+            omega1i = (x2i-x1i)*((yP-y1i)+(2*yP-y2i-y1i))/6   
+        
+            RV[i] = omega2iminusone+omega1i
+        ME = self.LocalMassMatrix(NE,RE,n,A)
+        MV = self.LocalMassMatrix(NV,RV,n,A)
+        return ME,MV
