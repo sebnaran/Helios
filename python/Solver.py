@@ -5,8 +5,7 @@ import numpy as np
 import math
 
 class InexactNewtonTimeInt(object):
-    def __init__(self,T,PDE):
-        self.T   = T
+    def __init__(self):
         #Series of constants for the error in the GMRES
         self.eps    = 1E-7
         self.etamax = 0.8
@@ -25,7 +24,6 @@ class InexactNewtonTimeInt(object):
         epsa   = math.sqrt(ndof)*(10**(-15))
         epst   = epsa+self.epsr*n2(G(x0))
         for i in range(maxiter):
-            print(i)
             nGxm = n2(G(xm))
             if abs(nGxm)<tol:
                 return xm

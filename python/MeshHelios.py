@@ -13,7 +13,7 @@ class HeliosMesh(object):
         self.ElementEdges     = ElementEdges
         self.NumBoundaryNodes = NumBoundaryNodes
         self.BNodes           = [Nodes[i] for i in NumBoundaryNodes]
-        self.Orientations  = Orientations
+        self.Orientations     = Orientations
 
 
         self.MakeDictionaries()

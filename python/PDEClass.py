@@ -19,27 +19,30 @@ class PDEFullMHD(object):
         #internal values. Thus, we will keep track of 4 arrays, they are:
         #dofs for elec field,
         #dof of the pressure and magnetic field.
-        #Finally the array of dofs for the vel field is has length 2,
-        #self.u[0] is the set of x values and self.u[1] is the set of y values
-        [self.ux,self.uy] = self.NodalDOFs(Inu,self.Mesh.Nodes)
-        self.B            = self.MagDOFs(InB)
-        self.p            = np.zeros(len(Mesh.ElementEdges))
-        self.E            = np.zeros(len(self.Mesh.Nodes))
+        #the dofs for the vel fields are stored in two arrays, x and y comp
+        tempu  = self.NodalDOFs(Inu,self.Mesh.Nodes)
+        self.ux,self.uy = self.DecompIntoCoord(tempu)
+        self.B          = self.MagDOFs(InB)
+        self.p          = np.zeros(len(Mesh.ElementEdges))
+        self.E          = np.zeros(len(self.Mesh.Nodes))
     ##################################################################################
     ##################################################################################    
     #Initiation of Boundary Conditions/DifferentTypes of Simulations and their updates
     def SetConvTestBCAndSource(self,f,g,h,ub,Eb):
-        self.f, self.g, self.h, self.ub, self.Eb = f, g, h, ub, Eb  #momentum eq source 
-        self.updatef(self.theta*self.dt)
-        self.updateg(self.theta*self.dt)
-        self.updateh(self.theta*self.dt)
+        self.f, self.g, self.h, self.ub, self.Eb = f, g, h, ub, Eb  #source terms and BC
+        self.DirichletUpdateSources( self.theta*self.dt) #Initiatiates, assumes that this was done at the init time
         #The expectation is that all these functions return np.arrays
 
     #The following routines update the dofs of the bc and sources
+    def DirichletUpdateSources(self,t):
+        self.updatef(t+self.theta*self.dt)
+        self.updateg(t+self.theta*self.dt) 
+        self.updateh(t+self.theta*self.dt)
+
     def updatef(self,t):
         def dummyf(xv):
             return self.f([xv[0],xv[1],t])
-        [self.fdofx,self.fdofy] = self.NodalDOFs(dummyf,self.Mesh.Nodes)
+        self.fdof = self.NodalDOFs(dummyf,self.Mesh.Nodes)
     
     def updateg(self,t):
         def dummyg(xv):
@@ -51,20 +54,35 @@ class PDEFullMHD(object):
             return self.h([xv[0],xv[1],t])
         self.hdof = self.NodalDOFs(dummyh,self.Mesh.Nodes)
 
-    def updateub(self,t):
-        def dummyub(xv):
+    def DirichletupdateBC(self,t):
+        def dummyubn(xv):
             return self.ub([xv[0],xv[1],t])
-    
-    def updateEb(self,t):
+        def dummyubnp1(xv):
+            return self.ub([xv[0],xv[1],t+self.dt*self.theta])
         def dummyEb(xv):
             return self.Eb([xv[0],xv[1],t])
-
+        tempubn   = self.NodalDOFs(dummyubn,self.Mesh.BNodes)
+        tempEb    = self.NodalDOFs(dummyEb,self.Mesh.BNodes)
+        tempubnp1 = self.NodalDOFs(dummyubn,self.Mesh.BNodes)
+        j = 0
+        for i in self.Mesh.NumBoundaryNodes:
+            self.ux[i] = tempub[j][0]
+            self.uy[i] = tempub[j][1]
+            self.E[i]  = tempEb[j]
+            j = j+1
     ##################################################################################
     ##################################################################################    
     #Initiation of Boundary Conditions/DifferentTypes of Simulations
     def NodalDOFs(self,Func,Nodes):
         #This function computes the dof of the init cond on the vel field.
-        return Func(Nodes)
+        return np.array([Func(Node) for Node in Nodes])
+
+    def DecompIntoCoord(self,Array):
+        #This function will, given a list of pairs return two arrays.
+        #The first and second components.
+        arrayx = [x[0] for x in Array]
+        Arrayy = [x[1] for x in Array]
+        return arrayx,Arrayy
 
     def MagDOFs(self,Func):
     #This computes the dofs of the initial magnetic field
@@ -97,12 +115,32 @@ class PDEFullMHD(object):
     ##################################################################################
     ##################################################################################    
     #These functions work as an interface with the solver class.
-    def Concatenate(self):
-        x = np.concatenate(self.ux,self.uy,self.B,self.E,self.p)
-        return x
+    def DirichletConcatenate(self):
+        #This function returns an array that concatenates all the unknowns
+        intux = [self.ux[i] for i in self.Mesh.NumInternalNodes]
+        intuy = [self.uy[i] for i in self.Mesh.NumInternalNodes]
+        intE  = [self.E[i] for i in self.Mesh.NumInternalNodes]
+        return np.concatenate((intux,intuy,self.B,intE,self.p), axis=None)
     
-    def NumUnknownDOFDirichlet(self):
-        return (3*len(self.ux)+3*len(self.Eb)+len(self.p)+len(self.B))
+    def NumDirichletDOF(self):
+        return 3*len(self.Mesh.NumInternalNodes)+len(self.Mesh.EdgeNodes)+len(self.Mesh.ElementEdges)
 
+    def DirichletUpdateInterior(self,x):
+        cut1 = len(self.Mesh.NumInternalNodes) #Number of internal dof for ux
+        cut2 = 2*cut1                          #Number of internal dof for uy
+        cut3 = cut2+len(self.B)                #Number of dofs for B
+        cut4 = cut3+cut1                       #The number of internal dofs for E is the same as for the vel field.
+        Cutx = np.split(x,[cut1,cut2,cut3,cut4])
+        j = 0
+        for i in self.Mesh.NumInternalNodes:
+            self.ux[i] = Cutx[0][j]
+            self.uy[i] = Cutx[1][j]
+            self.E[i]  = Cutx[3][j]
+            j = j+1
+        
+        self.B = Cutx[2]
+        self.p = Cutx[4]
+        
     def GDirichlet(self,x):
         return x
+    
