@@ -21,15 +21,17 @@ class PDEFullMHD(object):
         #dofs for elec field,
         #dof of the pressure and magnetic field.
         #the dofs for the vel fields are stored in two arrays, x and y comp
-        tempu  = self.NodalDOFs(Inu,self.Mesh.Nodes)
-        self.ux,self.uy = self.DecompIntoCoord(tempu)
-        self.B          = self.MagDOFs(InB)
-        self.p          = np.zeros(len(Mesh.ElementEdges))
-        self.E          = np.zeros(len(self.Mesh.Nodes))
+        tempun  = self.NodalDOFs(Inu,self.Mesh.Nodes)
+        self.unx,self.uny  = self.DecompIntoCoord(tempun)
+        tempum  = self.NodalDOFs(Inu,self.Mesh.MidNodes)
+        self.unx, self.umy = self.DocompIntoCoord(tempum)
+        self.B             = self.MagDOFs(InB)
+        self.p             = np.zeros(len(Mesh.ElementEdges))
+        self.E             = np.zeros(len(self.Mesh.Nodes))
         
         self.MEList     = []
         self.MVList     = []
-        for i in len(self.Mesh.ElementEdges):
+        for i in range(len(self.Mesh.ElementEdges)):
             tempME,tempMV = self.ElecMagStandMassMat(self.Mesh.ElementEdges[i],self.Mesh.Orientations[i])
             self.MEList.append(tempME)
             self.MVList.append(tempMV)
@@ -243,3 +245,45 @@ class PDEFullMHD(object):
         ME = self.LocalMassMatrix(NE,RE,n,A)
         MV = self.LocalMassMatrix(NV,RV,n,A)
         return ME,MV
+
+    def BDivSquared(self):
+        #This function computes the divergence of B.
+        D      = 0
+        DivMat = self.BDiv()
+        divB   = DivMat.dot(self.B)
+        for k in range(len(divB)):
+            D = D + k 
+        return D
+    
+    def BDiv(self):
+        NEl = len(self.Mesh.ElementEdges)
+        NE  = len(self.Mesh.EdgeNodes)
+        div = np.zeros((NEl,NE))
+        for i in range(NEl):
+            Element = self.Mesh.ElementEdges[i]
+            N       = len(Element)
+            Ori     = self.Mesh.Orientations[i]
+            for j in range(N):
+                Node1 = self.Mesh.EdgeNodes[Element[j]][0]
+                Node2 = self.Mesh.EdgeNodes[Element[j]][1]
+
+                x1    = self.Mesh.Nodes[Node1][0]
+                y1    = self.Mesh.Nodes[Node1][1] #these formulas are derived in the pdf document
+                x2    = self.Nodes[Node2][0]
+                y2    = self.Nodes[Node2][1]
+
+                lengthe           = math.sqrt((x2-x1)**2+(y2-y1)**2)
+                div[i,Element[j]] = Ori[j]*lengthe
+        return div
+    ######################################################################################
+    #Fluid Flow
+    def PhInProd(self,Element,ElementNumber):
+        #This function integrates two function in Ph over the provided element.
+        #The first function is p and the second is 1 over this element and zero over the rest.
+        A,V,E = self.Mesh.Area(self,Element,self.Mesh.Orientations[ElementNumber])
+        return A*self.p[ElementNumber]
+    
+    def TVhSemiInProd(self,Element):
+        #This function computes the semi inner product between the vel field v and
+        #a function whose dofs are one at one node and zero at the rest.
+        return 1
