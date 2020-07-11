@@ -1,5 +1,4 @@
 from MeshHelios import HeliosMesh
-
 import math
 import numpy as np
 
