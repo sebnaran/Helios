@@ -276,11 +276,21 @@ class PDEFullMHD(object):
         return div
     ######################################################################################
     #Fluid Flow
-    def PhInProd(self,Element,ElementNumber):
+    
+
+    def PhInProd(self,ElementNumber,dof):
         #This function integrates two function in Ph over the provided element.
-        #The first function is p and the second is 1 over this element and zero over the rest.
+        #The first function is p and the second is has dof value over this cell as provided.
+        Element = self.Mesh.ElementEdges[ElementNumber]
         A,V,E = self.Mesh.Area(self,Element,self.Mesh.Orientations[ElementNumber])
-        return A*self.p[ElementNumber]
+        return dof*A*self.p[ElementNumber]
+    
+    def DIVu(self,ElementNumber):
+        #This routine computes the divergence of u over the element provided.
+        Element = self.Mesh.ElementEdges[ElementNumber]
+        A,V,E = self.Mesh.Area(self,Element,self.Mesh.Orientations[ElementNumber])
+        
+        S = 0
     
     def TVhSemiInProd(self,Element):
         #This function computes the semi inner product between the vel field v and
