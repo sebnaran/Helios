@@ -17,10 +17,10 @@ class HeliosMesh(object):
 
 
         self.MakeDictionaries()
-        self.MakeNumIntNodes()
-        self.ComputeMidponts() #This adds an array with the midpoints of every edge. It is in the same order
-        self.ComputeBMidpoints()
-                               #This is in the same order as it is listed in EdgeNodes
+        self.ComputeMidponts() #This adds an array with the midpoints of every edge. It is in the same order as the edges
+        self.ComputeBMidpoints() #Computes the boundary midpoints
+        self.MakeNumIntNodes()   #Computes the internal midpoints of edges and internal nodes
+                               
     #MakeDictionaries creates two lists NodestoCells and EdgestoCells. 
     #NodestoCells will, given the position of a node in Nodes, return a list of the cells that have such a node.
     #EdgestoCells will, likewise, return the list of cells that have each edge.
@@ -40,9 +40,13 @@ class HeliosMesh(object):
                     self.NodestoCells[Node2].append(c)
     
     def MakeNumIntNodes(self):
-        numnodes           = len(self.Nodes)
-        AllNodes           = [i for i in range(numnodes)] 
-        self.NumInternalNodes = np.setdiff1d(AllNodes,self.NumBoundaryNodes)
+        numnodes                 = len(self.Nodes)
+        AllNodes                 = [i for i in range(numnodes)] 
+        self.NumInternalNodes    = np.setdiff1d(AllNodes,self.NumBoundaryNodes)
+
+        numedges                 = len(self.EdgeNodes)
+        AllEdges                 = [i for i in range(numedges)]
+        self.NumInternalMidNodes = np.setdiff1d(AllEdges,self.NumBMidNodes)
 
     def ComputeMidponts(self):
         self.MidNodes = []
@@ -53,21 +57,22 @@ class HeliosMesh(object):
     
     def ComputeBMidpoints(self):
         self.BMidNodes    = []
-        self.NumBMinNodes = []
+        self.NumBMidNodes = []
         i = 0
         for Node in self.MidNodes:
             x,y = Node[0],Node[1]
             if (abs(abs(x)-1) <1E-5 or abs(abs(y)-1)<1E-5):
-                self.NumBNodes.append(i)
+                self.NumBMidNodes.append(i)
                 self.BMidNodes.append(Node)
             i = i+1
+        
 
     def StandardElement(self,Element,Ori):
     #This routine will reorient, if necessary, the edges of the element to agree with Gauss's theorem,
     #This is to say that the edges will be reoriented in such a way that the element will be traversed in the
     #Counterclockwise direction and rotation by pi/2 in the counterclockwise direction of the tangential vector
     #will result in an outward normal vector.
-    #The last vertex,edge will be the first. This is in order to complete the loop.
+    #The last vertex,edge will be the first. This is in order to complete the loop.    
         N                = len(Element)
         OrientedEdges    = [0]*(N+1)
         OrientedVertices = [0]*(N+1)
