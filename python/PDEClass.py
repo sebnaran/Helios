@@ -451,24 +451,21 @@ class PDEFullMHD(object):
             j= j+1 
         return H,np.linalg.inv(G),D 
 
-    def TVhSemiInProdColumn(self,ElementNumber,unx,uny,umx,umy):
+    def TVhSemiInProdColumn(self,Element,ElementNumber,unx,uny,umx,umy,xP,yP,A,E):
         #This function will create a column vector, the first two entries 
         #in this vector will be the sum of the x coordinates and y coordinates
         #of the evaluation of a function at the nodes and midedges.
         #The rest will be the semi-inner product of the function against each
         #basis function.
-        Element = self.Mesh.ElementEdges[ElementNumber]
         N   = len(Element)
         B   = np.zeros((12),dtype=float)
 
         Div = self.DIVu(ElementNumber,unx,uny,umx,umy)
         unx = np.append(unx,unx[0])
         uny = np.append(uny,uny[0])
-        xP,yP,A,V,E = self.Mesh.Centroid(Element,self.Mesh.Orientations[ElementNumber])
 
         B[0] = np.sum(unx)+np.sum(umx)
         B[1] = np.sum(uny)+np.sum(umy)
-        
         
         for i in range(N):
             Edge = E[i]
@@ -503,32 +500,46 @@ class PDEFullMHD(object):
         B[8] = B[8]+2*A*xP*Div
         B[9] = B[9]+2*A*yP*Div
         return B
-        
-    def TVhSemiInProd(self,ElementNumber):
-        #This function computes the semi
-        #The number of degrees of freedom is 2*#nodes+2*#edges
-        #The dimension of [PS{2}(Element)]^2 is 12
-        Element  = self.Mesh.ElementEdges[ElementNumber]
-        NumEdges = len(Element)
-        NumNodes = NumEdges
-        B = np.zeros((12,2*(NumNodes+NumEdges))) 
-        #The order of our basis is takes the value 1 in the x component in the nodes, then in the y component.
-        #These are followed by 1 over the edges in the x component then in the y component.
-        A,V,E   = self.Mesh.Area(Element,self.Mesh.Orientations[ElementNumber])
-        for i in range(NumNodes):
-            B[0,i]            = 1
-            B[1,i+NumNodes]   = 1
-            B[0,i+2*NumNodes] = 1
-            B[1,i+3*NumNodes] = 1
 
-        geqzero  = [self.q2,self.q3,self.q4,self.q5,self.q10,self.q11]
-        gneqzero = [self.q6,self.q7,self.q8,self.q9]
+    def TVhSemiInProd(self,ElementNumber,unx,uny,umx,umy,vnx,vny,vmx,vmy):
+        #This function computes the semi-inner product in TVh of u against v over the selected element.
+        H, GI, D    = self.HSTVList[ElementNumber], self.GISTVList[ElementNumber], self.DTVList[ElementNumber]
+        Element     = self.Mesh.ElementEdges[ElementNumber]
+        xP,yP,A,V,E = self.Mesh.Centroid(Element,self.Mesh.Orientations[ElementNumber])
+        Bu          = self.TVhSemiInProdColumn(Element,ElementNumber,unx,uny,umx,umy,xP,yP,A,E)
+        Bv          = self.TVhSemiInProdColumn(Element,ElementNumber,vnx,vny,vmx,vmy,xP,yP,A,E)
+        Element     = self.Mesh.ElementEdges[ElementNumber]
 
-        for i in range(len(geqzero)):
-            for j in range(len(V)-1):
-                v1, v2 = V[j], V[j+1]
-                x1, x2 = v1[0], v2[0]
-                y1, y2 = v1[1], v2[1]
-                etimesnormal = [y2-y1,x1-x2]
+        Pistaru ,Pistarv = GI.dot(Bu), GI.dot(Bv)
+        Piu,     Piv     = D.dot(Pistaru), D.dot(Pistarv)
+        u                = np.concatenate((unx,uny,umx,umy), axis=None)
+        v                = np.concatenate((vnx,vny,vmx,vmy), axis=None)
+        aprox = np.transpose(Pistaru).dot(H).dot(Pistarv)
+        stab  = A*(u-Piu).dot(v-Piv)
+        print(Pistaru)
+        print('printed')
+        #return np.transpose(Pistaru).dot(H).dot(Pistarv)+A*(u-Piu).dot(v-Piv)
+        return aprox,stab
+    
+    def GetLocalTVhDOF(self,ElementNumber,Gunx,Guny,Gumx,Gumy):
+        #This function will, provided 
+        Element = self.Mesh.ElementEdges[ElementNumber]
+        V,E     = self.Mesh.StandardElement(Element,self.Mesh.Orientations[ElementNumber])
+        N       = len(Element)
+        lunx    = np.zeros((N),dtype=float)
+        luny    = np.zeros((N),dtype=float)
+        lumx    = np.zeros((N),dtype=float)
+        lumy    = np.zeros((N),dtype=float)
+        for i in range(len(E)-1):
+            Edge    = E[i]
+            v1      = Edge[0]
 
-        
+            lunx[i] = Gunx[v1]
+            luny[i] = Guny[v1]
+
+        for i in range(len(E)-1):
+            Edge    = Element[i]
+            lumx[i] = Gumx[Edge]
+            lumy[i] = Gumy[Edge]
+
+        return lunx,luny,lumx,lumy
