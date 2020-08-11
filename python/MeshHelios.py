@@ -7,15 +7,14 @@ import numpy as np
 #Each element in Ortientations corresponds to the element in the same spot in ElementEdges. A 1 is placed in the ordering of the edge
 #accords with the divergence Theorem. A -1 is placed if this is not the case.
 class HeliosMesh(object):
-    def __init__(self,Nodes,EdgeNodes,ElementEdges,NumBoundaryNodes,Orientations):
+    def __init__(self,Nodes,EdgeNodes,ElementEdges,Orientations):
         self.Nodes            = Nodes
         self.EdgeNodes        = EdgeNodes
-        self.ElementEdges     = ElementEdges
-        self.NumBoundaryNodes = NumBoundaryNodes
-        self.BNodes           = [Nodes[i] for i in NumBoundaryNodes]
+        self.ElementEdges     = ElementEdges 
         self.Orientations     = Orientations
 
-
+        self.MakeNumBoundaryNodes()
+        self.BNodes = [Nodes[i] for i in self.NumBoundaryNodes]
         self.MakeDictionaries()
         self.ComputeMidponts() #This adds an array with the midpoints of every edge. It is in the same order as the edges
         self.ComputeBMidpoints() #Computes the boundary midpoints
@@ -38,7 +37,16 @@ class HeliosMesh(object):
                     self.NodestoCells[Node1].append(c)
                 if c not in self.NodestoCells[Node2]:
                     self.NodestoCells[Node2].append(c)
-    
+
+    def MakeNumBoundaryNodes(self):
+        i = 0
+        self.NumBoundaryNodes = []
+        for Node in self.Nodes:
+            x, y = Node[0], Node[1]
+            if (abs(x-1)<1E-5 or abs(x+1)<1E-5 or abs(y-1)<1E-5 or abs(y+1)<1E-5):
+                self.NumBoundaryNodes.append(i)
+            i = i+1
+
     def MakeNumIntNodes(self):
         numnodes                 = len(self.Nodes)
         AllNodes                 = [i for i in range(numnodes)] 

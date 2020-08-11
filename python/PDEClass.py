@@ -1,4 +1,6 @@
 from MeshHelios import HeliosMesh
+from scipy.sparse import csr_matrix
+from scipy.sparse import lil_matrix
 import math
 import numpy as np
 
@@ -20,9 +22,9 @@ class PDEFullMHD(object):
         #dofs for elec field,
         #dof of the pressure and magnetic field.
         #the dofs for the vel fields are stored in two arrays, x and y comp
-        tempun  = self.NodalDOFs(Inu,self.Mesh.Nodes)
+        tempun             = self.NodalDOFs(Inu,self.Mesh.Nodes)
         self.unx,self.uny  = self.DecompIntoCoord(tempun)
-        tempum  = self.NodalDOFs(Inu,self.Mesh.MidNodes)
+        tempum             = self.NodalDOFs(Inu,self.Mesh.MidNodes)
         self.umx, self.umy = self.DecompIntoCoord(tempum)
         self.B             = self.MagDOFs(InB)
         self.p             = np.zeros(len(Mesh.ElementEdges))
@@ -137,7 +139,7 @@ class PDEFullMHD(object):
 
     ##################################################################################
     ##################################################################################    
-    #These functions work as an interface with the solver class.
+    #These functions work as an interface with the solver class. These are for Full MHD
     def DirichletConcatenate(self):
         #This function returns an array that concatenates all the unknowns
         intunx = [self.unx[i] for i in self.Mesh.NumInternalNodes]
@@ -171,16 +173,96 @@ class PDEFullMHD(object):
             j = j+1
         self.B = Cutx[4]
         self.p = Cutx[6]
-        
+
     def GDirichlet(self,x):
         #The x is passed because the Scipy Linear Function class requires it.
         #It will use the current values of the internal variables
         for i in self.Mesh.NumInternalNodes:
             CellNums = self.Mesh.NodestoCells[i]
             
-            
-
+    ##########################################################################################
+    ##########################################################################################
+    #Here are the interface to Solver functions regarding a tests involving only the electromagnetics.
+    #         
+    def ElectroConcatenate(self):
+        #This function returns an array that concatenates all the unknowns
+        intE = [self.E[i] for i in self.Mesh.NumInternalNodes]
+        return np.concatenate((self.B,intE), axis=None)
     
+    def NumElectroDOF(self):
+        return len(self.Mesh.NumInternalNodes)+len(self.Mesh.EdgeNodes)
+
+    def Electroupdateh(self,t):
+        def dummyh(xv):
+            return self.h([xv[0],xv[1],t+self.theta*self.dt])
+        self.hdof = self.NodalDOFs(dummyh,self.Mesh.Nodes)
+
+    def ElectroComputeBC(self,t):
+        def dummyEb(xv):
+            return self.Eb([xv[0],xv[1],t+self.theta*self.dt])
+        self.ElectroBC = self.NodalDOFs(dummyEb,self.Mesh.BNodes)
+
+    def ElectroupdateBC(self,E):
+        j = 0
+        for i in self.Mesh.NumBoundaryNodes:
+            E[i]  = self.ElectroBC[j]
+            j = j+1
+        return E
+
+    def SetElectroBCAndSource(self,h,Eb):
+        self.h, self.Eb = h, Eb  #source terms and BC
+
+    def ElectroUpdateUnknownDOFs(self,x):
+        cut1 = len(self.Mesh.EdgeNodes) #Number of internal dofs for ux
+        Cutx = np.split(x,[cut1])
+        j = 0
+        for i in self.Mesh.NumInternalNodes:
+            self.E[i]   = Cutx[1][j]
+            j = j+1
+        self.B = Cutx[0]
+
+    def ElectroG(self,x):
+        cut1 = len(self.Mesh.EdgeNodes) #Number of internal dofs for ux
+        Cutx = np.split(x,[cut1])
+        Bnp1 = Cutx[0]
+        E    = np.zeros((len(self.Mesh.Nodes)))
+        j = 0
+        for i in self.Mesh.NumInternalNodes:
+            E[i] = Cutx[1][j]
+            j    = j+1
+        j = 0
+        for i in self.Mesh.NumBoundaryNodes:
+            E[i] = self.ElectroBC[j]
+            j    = j+1
+        y       = np.zeros(len(x))
+        MRot    = self.Rot(self.Mesh.EdgeNodes,self.Mesh.Nodes)
+        Faraday = MRot.dot(E)+(Bnp1-self.B)/self.dt
+        N       = len(self.Mesh.EdgeNodes)
+        for i in range(N):
+            Cells = self.Mesh.EdgestoCells[i]
+            for Cell in Cells:
+                Element      = self.Mesh.ElementEdges[Cell]
+                ind          = Element.index(i)
+                TestFar      = np.zeros(len(Element))
+                TestFar[ind] = 1
+                locFar       = self.GetLocalEhDOF(Cell,Faraday)
+                y[i]         = y[i]+locFar.dot(self.MEList[Cell].dot(TestFar))
+        i = 0
+        for v in self.Mesh.NumInternalNodes:
+            D      = np.zeros((len(self.Mesh.Nodes)))
+            D[v]   = 1
+            RotD   = MRot.dot(D)
+            Cells  = self.Mesh.NodestoCells[v]
+            thetaB = (1-self.theta)*self.B+self.theta*Bnp1
+            for Cell in Cells:
+                LocRotD   = self.GetLocalEhDOF(Cell,RotD)
+                LocthetaB = self.GetLocalEhDOF(Cell,thetaB)
+                LocE      = self.GetLocalVhDOF(Cell,E)
+                LocD      = self.GetLocalVhDOF(Cell,D)
+                Loch      = self.GetLocalVhDOF(Cell,self.hdof)
+                y[i+N]    = y[i+N]+(LocE-Loch).dot(self.MVList[Cell].dot(LocD))-(1/self.Rm)*LocthetaB.dot(self.MEList[Cell].dot(LocRotD))
+            i = i+1
+        return y
     #########################################################################################
     #########################################################################################
     #The following routines will, given a cell compute each of the bilinear forms in the var form.
@@ -295,6 +377,61 @@ class PDEFullMHD(object):
                 lengthe           = math.sqrt((x2-x1)**2+(y2-y1)**2)
                 div[i,Element[j]] = Ori[j]*lengthe
         return div
+    
+    def Rot(self,EdgeNodes,Nodes):
+    #This routine computes the primary curl as a matrix
+        nN = len(Nodes)
+        nE = len(EdgeNodes)
+    #curl = np.zeros((nE,nN))
+        curl = lil_matrix((nE,nN))
+        for i in range(nE):
+            Node1 = EdgeNodes[i][0]
+            Node2 = EdgeNodes[i][1]
+            x1 = Nodes[Node1][0]
+            y1 = Nodes[Node1][1]
+            x2 = Nodes[Node2][0]
+            y2 = Nodes[Node2][1]
+            lengthe = math.sqrt((x2-x1)**2+(y2-y1)**2)
+        
+            curl[i,Node2] = 1/lengthe #These formulas are derived in the pdf document
+            curl[i,Node1] = -1/lengthe
+        curl = curl.tocsr()
+        return curl
+
+    def GetLocalEhDOF(self,ElementNum,arr):
+        Element = self.Mesh.ElementEdges[ElementNum]
+        Locarr  = np.zeros( (len(Element)) )
+        i = 0
+        for e in Element:
+            Locarr[i] = arr[e]
+            i         = i+1
+        return Locarr
+
+    def GetLocalVhDOF(self,ElementNum,arr):
+        Element = self.Mesh.ElementEdges[ElementNum]
+        Locarr  = np.zeros( (len(Element)) )
+        V,E     = self.Mesh.StandardElement(Element,self.Mesh.Orientations[ElementNum])
+        i = 0
+        for e in range(len(E)-1):
+            Edge      = E[e]
+            v         = Edge[0]
+            Locarr[i] = arr[v]
+            i         = i+1
+        return Locarr
+
+    def VhL2Norm(self,Arr):
+        Norm = 0
+        for i in range(len(self.Mesh.ElementEdges)):
+            LocArr = self.GetLocalVhDOF(i,Arr)
+            Norm   = Norm+LocArr.dot( self.MVList[i].dot(LocArr))
+        return math.sqrt(Norm)
+    
+    def EhL2Norm(self,Arr):
+        Norm = 0
+        for i in range(len(self.Mesh.ElementEdges)):
+            LocArr = self.GetLocalEhDOF(i,Arr)
+            Norm   = Norm+LocArr.dot( self.MEList[i].dot(LocArr))
+        return math.sqrt(Norm)
     ######################################################################################
     #Fluid Flow
     

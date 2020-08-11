@@ -18,6 +18,8 @@ class InexactNewtonTimeInt(object):
         #To find the zeroes of the function G provided the initial guess x0
         #Within the tolerance tol in the 2-norm. ndof is the number of unknowns.
         xm     = x0
+        #print(x0)
+        #print('eval G')
         Gxm    = G(x0)
         etamm1 = self.etamax
         nGxmm1 = 1
@@ -34,8 +36,8 @@ class InexactNewtonTimeInt(object):
                 etamA = self.gamma*(nGxm/nGxmm1)**(self.alpha)
                 etamB = min([self.etamax,max([etamA,self.gamma*etamm1**self.alpha])])
                 etam  = min([self.etamax,max([etamB,self.gamma*(epst/nGxm)])])
-                
                 delxm, exitcode = gmres(DGxm,-Gxm,atol=etam*nGxm)
+                
                 xm              = xm+delxm
                 Gxm             = G(xm)
                 etamm1 = etam
