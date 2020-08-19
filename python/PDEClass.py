@@ -109,6 +109,26 @@ class PDEFullMHD(object):
         Arrayy = [x[1] for x in Array]
         return arrayx,Arrayy
 
+    def PhDOF(self,p):
+        ph = np.zeros((len(self.Mesh.ElementEdges)), dtype=float)
+        j  = 0
+        for Element in self.Mesh.ElementEdges:
+            xP,yP,A,V,E = self.Mesh.Centroid(Element,self.Mesh.Orientations[j])
+            for i in range(len(V)-1):
+                Node1 = V[i]
+                Node2 = V[i+1]
+                x1,y1 = Node1[0],Node1[1]
+                x2,y2 = Node2[0],Node2[1]
+            
+                xh1,yh1 = (x1+x2)/2,(y1+y2)/2
+                xh2,yh2 = (x1+xP)/2,(y1+yP)/2
+                xh3,yh3 = (x2+xP)/2,(y2+yP)/2
+
+                AT    = 0.5*abs( (x2-xP)*(y1-yP)-(y2-yP)*(x1-xP) )
+                ph[j] = ph[j]+(AT/3)*(p([xh1,yh1])+p([xh2,yh2])+p([xh3,yh3]))
+            j = j+1
+        return ph
+
     def MagDOFs(self,Func):
     #This computes the dofs of the initial magnetic field
     #This routine could be sped up by vectorizing. For our purposes this
@@ -179,7 +199,144 @@ class PDEFullMHD(object):
         #It will use the current values of the internal variables
         for i in self.Mesh.NumInternalNodes:
             CellNums = self.Mesh.NodestoCells[i]
+    ##########################################################################################
+    ##########################################################################################
+    #Here are the interface to Solver functions regarding a tests involving only the electromagnetics.
+    def FlowConcatenate(self):
+        #This function returns an array that concatenates all the unknowns
+        intunx = [self.unx[i] for i in self.Mesh.NumInternalNodes]
+        intuny = [self.uny[i] for i in self.Mesh.NumInternalNodes]
+        intumx = [self.umx[i] for i in self.Mesh.NumInternalMidNodes]
+        intumy = [self.umy[i] for i in self.Mesh.NumInternalMidNodes]
+        tempp  = self.p[0:len(self.p)-1]
+        return np.concatenate((intunx,intuny,intumx,intumy,tempp), axis=None)
+
+    def NumFlowDOF(self):
+        return 2*len(self.Mesh.NumInternalNodes)+2*len(self.Mesh.NumInternalMidNodes)+len(self.Mesh.ElementEdges)-1
+
+    def SetFlowBCAndSource(self,ub):
+        self.ub = ub  #source terms and BC
+
+    def Flowupdatef(self,t):
+        def dummyf(xv):
+            return self.f([xv[0],xv[1],t+self.theta*self.dt])
+        tempfn             = self.NodalDOFs(dummyf,self.Mesh.Nodes)
+        self.fnx,self.fny  = self.DecompIntoCoord(tempfn)
+        tempfm             = self.NodalDOFs(dummyf,self.Mesh.MidNodes)
+        self.fmx, self.fmy = self.DecompIntoCoord(tempfm)
+
+    def FlowComputeBC(self,t):
+        def dummyub(xv):
+            return self.ub([xv[0],xv[1],t+self.dt])
+        tempubn              = self.NodalDOFs(dummyub,self.Mesh.Nodes)
+        self.ubnx,self.ubny  = self.DecompIntoCoord(tempubn)
+        tempum               = self.NodalDOFs(dummyub,self.Mesh.MidNodes)
+        self.ubmx, self.ubmy = self.DecompIntoCoord(tempum)
+
+    def FlowupdateBC(self,unx,uny,umx,umy):
+        j = 0
+        for i in self.Mesh.NumBoundaryNodes:
+            unx[i]  = self.ubnx[j]
+            uny[i]  = self.ubny[j]
+            j = j+1
+        j = 0
+        for i in self.Mesh.NumBMidNodes:
+            umx[i]  = self.ubmx[j]
+            umy[i]  = self.ubmy[j]
+            j = j+1
+        return unx,uny,umx,umy
+
+    def FlowUpdateUnknownDOFs(self,x):
+        intN  = len(self.Mesh.NumInternalNodes) #Number of internal dofs for ux
+        intBN = len(self.Mesh.NumInternalMidNodes)
+        Cutx  = np.split(x,[intN,2*intN,2*intN+intBN,2*intN+2*intBN])
+        j = 0
+        for i in self.Mesh.NumInternalNodes:
+            self.unx[i] = Cutx[0][j]
+            self.uny[i] = Cutx[1][j]
+            j = j+1
+        j = 0
+        for i in self.Mesh.NumInternalMidNodes:
+            self.umx[i] = Cutx[2][j]
+            self.umy[i] = Cutx[3][j]
+            j = j+1
+
+        self.p[0:len(self.p)-1] = Cutx[4]
+        self.p[len(self.p)-1]   = -np.sum(self.p[0:len(self.p)-1])
+
+    def FlowG(self,x):
+        unx,uny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+        umx,umy = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+        p       = np.zeros((len(self.Mesh.ElementEdges)))
+
+        intN  = len(self.Mesh.NumInternalNodes) 
+        intMN = len(self.Mesh.NumInternalMidNodes)
+        Cutx  = np.split(x,[intN,2*intN,2*intN+intMN,2*intN+2*intMN])
+        j = 0
+        for i in self.Mesh.NumInternalNodes:
+            unx[i] = Cutx[0][j]
+            uny[i] = Cutx[1][j]
+            j = j+1
+        j = 0
+        for i in self.Mesh.NumInternalMidNodes:
+            umx[i] = Cutx[2][j]
+            umy[i] = Cutx[3][j]
+            j = j+1
+
+        p[0:len(p)-1]   = Cutx[4]
+        p[len(p)-1]     = -np.sum(p[0:len(p)-1])
+        unx,uny,umx,umy = self.FlowupdateBC(unx,uny,umx,umy)
+        y = np.zeros((len(x))) 
+        k = 0 
+        for i in self.Mesh.NumInternalNodes:
+            Cells = self.Mesh.NodestoCells[i]
+            v1nx,v1ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+            v1mx,v1my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+            v1nx[i]   = 1
             
+            v2nx,v2ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+            v2mx,v2my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+            v2ny[i]   = 1
+            for Cell in Cells:
+                lunx ,luny ,lumx ,lumy  = self.GetLocalTVhDOF(Cell,unx,uny,umx,umy)
+                lv1nx,lv1ny,lv1mx,lv1my = self.GetLocalTVhDOF(Cell,v1nx,v1ny,v1mx,v1my)
+                lv2nx,lv2ny,lv2mx,lv2my = self.GetLocalTVhDOF(Cell,v2nx,v2ny,v2mx,v2my)
+                
+                divv1 = self.DIVu(Cell,lv1nx,lv1ny,lv1mx,lv1my)
+                y[k]  = y[k]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv1nx,lv1ny,lv1mx,lv1my)-self.PhInProd(Cell,p[Cell],divv1)
+
+                divv2      = self.DIVu(Cell,lv2nx,lv2ny,lv2mx,lv2my)
+                y[k+intN]  = y[k+intN]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv2nx,lv2ny,lv2mx,lv2my)-self.PhInProd(Cell,p[Cell],divv2)
+            k = k+1
+        k = 0
+        for i in self.Mesh.NumInternalMidNodes:
+            Cells = self.Mesh.EdgestoCells[i]
+            v1nx,v1ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+            v1mx,v1my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+            v1mx[i]   = 1
+            
+            v2nx,v2ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+            v2mx,v2my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+            v2my[i]   = 1
+            for Cell in Cells:
+                lunx ,luny ,lumx ,lumy  = self.GetLocalTVhDOF(Cell,unx,uny,umx,umy)
+                lv1nx,lv1ny,lv1mx,lv1my = self.GetLocalTVhDOF(Cell,v1nx,v1ny,v1mx,v1my)
+                lv2nx,lv2ny,lv2mx,lv2my = self.GetLocalTVhDOF(Cell,v2nx,v2ny,v2mx,v2my)
+                
+                divv1       = self.DIVu(Cell,lv1nx,lv1ny,lv1mx,lv1my)
+                y[k+2*intN] = y[k+2*intN]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv1nx,lv1ny,lv1mx,lv1my)-self.PhInProd(Cell,p[Cell],divv1)
+
+                divv2             = self.DIVu(Cell,lv2nx,lv2ny,lv2mx,lv2my)
+                y[k+2*intN+intMN] = y[k+2*intN+intMN]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv2nx,lv2ny,lv2mx,lv2my)-self.PhInProd(Cell,p[Cell],divv2)
+            k = k+1
+        k = 0
+        for i in range(len(self.Mesh.ElementEdges)-1):
+            lunx ,luny ,lumx ,lumy  = self.GetLocalTVhDOF(i,unx,uny,umx,umy)
+            Divu                    = self.DIVu(i,lunx,luny,lumx,lumy)
+            y[k+2*intN+2*intMN]     = y[k+2*intN+2*intMN]+self.PhInProd(i,Divu,1)-self.PhInProd(len(self.Mesh.ElementEdges)-1,Divu,1)
+            k = k+1
+        return y
+
     ##########################################################################################
     ##########################################################################################
     #Here are the interface to Solver functions regarding a tests involving only the electromagnetics.
@@ -471,12 +628,19 @@ class PDEFullMHD(object):
     def q11(self,x,y):
         return np.array([0,x*y])
 
-    def PhInProd(self,ElementNumber,dof):
-        #This function integrates two function in Ph over the provided element.
-        #The first function is p and the second is has dof value over this cell as provided.
+    def PhInProd(self,ElementNumber,ph,qh):
+        #This function integrates two functions in Ph over the provided element.
         Element = self.Mesh.ElementEdges[ElementNumber]
         A,V,E = self.Mesh.Area(Element,self.Mesh.Orientations[ElementNumber])
-        return dof*A*self.p[ElementNumber]
+        return ph*A*qh
+    
+    def PhL2Norm(self,ph):
+        Norm, j = 0,0
+        for Element in ElementEdges:
+            A,V,E = self.Mesh.Area(Element,self.Mesh.Orientations[j])
+            Norm  = Norm+A*ph[j]*ph[j]
+            j = j+1
+        return math.sqrt(Norm)
     
     def DIVu(self,ElementNumber,unx,uny,umx,umy):
         #This routine computes the divergence of u over the element provided.
@@ -485,16 +649,14 @@ class PDEFullMHD(object):
         unx     = np.append(unx,unx[0])
         uny     = np.append(uny,uny[0])
         S, k = 0, 0
+
         for i in range(len(Element)):
-            n1, n2 = E[k][0], E[k+1][1]
+            n1, n2 = E[k][0], E[k][1]
             v1, v2 = self.Mesh.Nodes[n1], self.Mesh.Nodes[n2]
             x1, x2 = v1[0], v2[0]
             y1, y2 = v1[1], v2[1]
-            
             etimesnormal = [y2-y1,x1-x2]
-            
-            S = S+(unx[i]+unx[i+1]+4*umx[i])*etimesnormal[0]
-            S = S+(uny[i]+uny[i+1]+4*umy[i])*etimesnormal[1]
+            S = S+(unx[i]+unx[i+1]+4*umx[i])*etimesnormal[0]+(uny[i]+uny[i+1]+4*umy[i])*etimesnormal[1]
             k = k+1
         return S/(6*A)     
     
@@ -503,6 +665,8 @@ class PDEFullMHD(object):
         Element     = self.Mesh.ElementEdges[ElementNumber]
         xP,yP,A,V,E = self.Mesh.Centroid(Element,self.Mesh.Orientations[ElementNumber])
         xyP         = 0
+        xxP         = 0
+        yyP         = 0
         for i in range(len(V)-1):
             Node1 = V[i]
             Node2 = V[i+1]
@@ -513,51 +677,74 @@ class PDEFullMHD(object):
             xh2,yh2 = (x1+xP)/2,(y1+yP)/2
             xh3,yh3 = (x2+xP)/2,(y2+yP)/2
 
-            AT  = 0.5*abs( (x2-xP)*(y1-yP)-(y2-yP)*(x2-xP) )
+            AT  = 0.5*abs( (x2-xP)*(y1-yP)-(y2-yP)*(x1-xP) )
             xyP = xyP+(AT/3)*(xh1*yh1+xh2*yh2+xh3*yh3)
-
+            xxP = xxP+(AT/3)*(xh1**2+xh2**2+xh3**2)
+            yyP = yyP+(AT/3)*(xh1**2+xh2**2+xh3**2)
         H = np.zeros((12,12),dtype=float)
         G = np.zeros((12,12),dtype=float)
         H[2,6], H[6,2]  = 2*xP*A,2*xP*A
         H[2,10],H[10,2] = yP*A,yP*A
+        H[2,2]          = A
 
         H[3,7], H[7,3]  = 2*xP*A,2*xP*A
         H[3,11],H[11,3] = yP*A,yP*A
+        H[3,3]          = A
 
         H[4,8], H[8,4]  = 2*yP*A,2*yP*A
-        H[4,10],H[10,4] = xP*A,xP*A 
+        H[4,10],H[10,4] = xP*A,xP*A
+        H[4,4]          = A 
 
         H[5,9],H[9,5]   = 2*yP*A,2*yP*A
         H[5,11],H[11,5] = xP*A,xP*A
-
+        H[5,5]          = A
+    
         H[6,10],H[10,6] = 2*xyP,2*xyP
+        H[6,6]          = 4*xxP
 
         H[7,11],H[11,7] = 2*xyP,2*xyP
+        H[7,7]          = 4*xxP
 
         H[8,10],H[10,8] = 2*xyP,2*xyP
+        H[8,8]          = 4*yyP
 
         H[9,11],H[11,9] = 2*xyP,2*xyP
+        H[9,9]          = 4*yyP
 
+        H[10,10]        = yyP+xxP
+
+        H[11,11]        = yyP+xxP
         G[2,6], G[6,2]  = 2*xP*A,2*xP*A
         G[2,10],G[10,2] = yP*A,yP*A
+        G[2,2]          = A
 
         G[3,7], G[7,3]  = 2*xP*A,2*xP*A
         G[3,11],G[11,3] = yP*A,yP*A
+        G[3,3]          = A
 
         G[4,8], G[8,4]  = 2*yP*A,2*yP*A
         G[4,10],G[10,4] = xP*A,xP*A 
+        G[4,4]          = A
 
         G[5,9],G[9,5]   = 2*yP*A,2*yP*A
         G[5,11],G[11,5] = xP*A,xP*A
+        G[5,5]          = A
 
         G[6,10],G[10,6] = 2*xyP,2*xyP
+        G[6,6]          = 4*xxP
 
         G[7,11],G[11,7] = 2*xyP,2*xyP
+        G[7,7]          = 4*xxP
 
         G[8,10],G[10,8] = 2*xyP,2*xyP
+        G[8,8]          = 4*yyP
 
         G[9,11],G[11,9] = 2*xyP,2*xyP
+        G[9,9]          = 4*yyP
 
+        G[10,10]        = yyP+xxP
+
+        G[11,11]        = yyP+xxP
         Basis = [self.q0,self.q1,self.q2,self.q3,self.q4,self.q5,self.q6,self.q7,self.q8,self.q9,self.q10,self.q11]
         Num   = len(Element)
         D = np.zeros((4*Num,12),dtype=float)
@@ -598,12 +785,11 @@ class PDEFullMHD(object):
         B   = np.zeros((12),dtype=float)
 
         Div = self.DIVu(ElementNumber,unx,uny,umx,umy)
+        B[0] = np.sum(unx)+np.sum(umx)
+        B[1] = np.sum(uny)+np.sum(umy)
         unx = np.append(unx,unx[0])
         uny = np.append(uny,uny[0])
 
-        B[0] = np.sum(unx)+np.sum(umx)
-        B[1] = np.sum(uny)+np.sum(umy)
-        
         for i in range(N):
             Edge = E[i]
             Node1,Node2  = self.Mesh.Nodes[Edge[0]],self.Mesh.Nodes[Edge[1]]
@@ -621,6 +807,7 @@ class PDEFullMHD(object):
             B[9]  = B[9]+(en[1]/3)*(y1*uny[i]+4*yh*umy[i]+y2*uny[i+1]) #q10
             B[10] = B[10]+(1/6)*((y1*en[0]+x1*en[1])*unx[i]+4*(yh*en[0]+xh*en[1])*umx[i]+(y2*en[0]+x2*en[1])*unx[i+1]) #q11
             B[11] = B[11]+(1/6)*((y1*en[0]+x1*en[1])*uny[i]+4*(yh*en[0]+xh*en[1])*umy[i]+(y2*en[0]+x2*en[1])*uny[i+1]) #q12
+
             #Compute T3
             udn1 = unx[i]*en[0]+uny[i]*en[1]
             udnh = umx[i]*en[0]+umy[i]*en[1]
@@ -630,16 +817,18 @@ class PDEFullMHD(object):
             B[7] = B[7]-(1/3)*(y1*udn1+4*yh*udnh+y2*udn2)
             B[8] = B[8]-(1/3)*(x1*udn1+4*xh*udnh+x2*udn2)
             B[9] = B[9]-(1/3)*(y1*udn1+4*yh*udnh+y2*udn2)
-        
+            
         #Compute T2
         B[6] = B[6]+2*A*xP*Div
         B[7] = B[7]+2*A*yP*Div
         B[8] = B[8]+2*A*xP*Div
         B[9] = B[9]+2*A*yP*Div
+        
         return B
 
     def TVhSemiInProd(self,ElementNumber,unx,uny,umx,umy,vnx,vny,vmx,vmy):
         #This function computes the semi-inner product in TVh of u against v over the selected element.
+        #The inputed DOF must be local.
         H, GI, D    = self.HSTVList[ElementNumber], self.GISTVList[ElementNumber], self.DTVList[ElementNumber]
         Element     = self.Mesh.ElementEdges[ElementNumber]
         xP,yP,A,V,E = self.Mesh.Centroid(Element,self.Mesh.Orientations[ElementNumber])
@@ -651,12 +840,9 @@ class PDEFullMHD(object):
         Piu,     Piv     = D.dot(Pistaru), D.dot(Pistarv)
         u                = np.concatenate((unx,uny,umx,umy), axis=None)
         v                = np.concatenate((vnx,vny,vmx,vmy), axis=None)
-        aprox = np.transpose(Pistaru).dot(H).dot(Pistarv)
-        stab  = A*(u-Piu).dot(v-Piv)
-        print(Pistaru)
-        print('printed')
-        #return np.transpose(Pistaru).dot(H).dot(Pistarv)+A*(u-Piu).dot(v-Piv)
-        return aprox,stab
+
+        return np.transpose(Pistaru).dot(H).dot(Pistarv)+A*(u-Piu).dot(v-Piv)
+
     
     def GetLocalTVhDOF(self,ElementNumber,Gunx,Guny,Gumx,Gumy):
         #This function will, provided 

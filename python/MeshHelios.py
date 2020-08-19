@@ -74,7 +74,6 @@ class HeliosMesh(object):
                 self.BMidNodes.append(Node)
             i = i+1
         
-
     def StandardElement(self,Element,Ori):
     #This routine will reorient, if necessary, the edges of the element to agree with Gauss's theorem,
     #This is to say that the edges will be reoriented in such a way that the element will be traversed in the
