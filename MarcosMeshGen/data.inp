@@ -1,0 +1,10 @@
+## squares
+mesh 100 40 10 0. 0. 0     # regular 20x5 quads
+# mesh flag, nx, ny, wx, wy, nref
+
+# flag for postscript outoput
+psgd 3 -1
+
+# psgd flag0, flag1
+# flag0 : output all refinement till flag0 (included)
+# flag1 : 0 [no numbers], 1 [numbers]

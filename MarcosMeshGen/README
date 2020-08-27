@@ -1,0 +1,8 @@
+Just do:
+
+make
+main_05
+
+The code main_05 generates the base mesh and two refinements and save the data structures in accordoance with the input file (data.inp). 
+
+Any run saves the postscript of the mesh in MESH-PS, and the mesh data file.

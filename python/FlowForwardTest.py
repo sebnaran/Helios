@@ -64,5 +64,6 @@ for MType in MTypes:
         #print('y =' +str(y))
         print('max|y|='+str(maxy))
         print('ave='+str(ave))
-        print('l2norm='+str(l2norm))
+        print('EuclideanNorm='+str(l2norm))
+        print('NumEntries='+str(len(y)))
         i = i+1
