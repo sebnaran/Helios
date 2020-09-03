@@ -37,6 +37,38 @@ Orientations = []
 for Element in ElementEdges:
     Ori = Orientation(Element,EdgeNodes,Nodes)
     Orientations.append(Ori)
+i = 0
+BoundaryNodes=[]
+for Node in Nodes:
+    x,y = Node[0],Node[1]
+    if abs(x-1)<1E-5 or abs(x+1)<1E-5 or abs(y-1)<1E-5 or abs(y+1)<1E-5:
+        BoundaryNodes.append(i)
+    i = i+1
+BottomToTop = []
+LeftToRight = []
+for i in BoundaryNodes:
+    Node = Nodes[i]
+    x,y  = Node[0],Node[1]
+    if abs(x+1)<1E-5 and abs(y-1)>1E-5 and abs(y+1>1E-5):
+        for j in BoundaryNodes:
+            NNode = Nodes[j]
+            xN,yN = NNode[0],NNode[1]
+            if abs(xN-1)<1E-5 and abs(y-yN)<1E-5:
+                LeftToRight.append([i,j])
+    if abs(y+1)<1E-5 and abs(x-1)>1E-5 and abs(x+1>1E-5):
+        for j in BoundaryNodes:
+            NNode = Nodes[j]
+            xN,yN = NNode[0],NNode[1]
+            if abs(yN-1)<1E-5 and abs(xN-x)<1E-5:
+                BottomToTop.append([i,j])
+Corners = []
+for i in BoundaryNodes:
+    Node = Nodes[i]
+    x,y  = Node[0],Node[1]
+    if (abs(x-1)<1E-5 and abs(y-1)<1E-5) or (abs(x+1)<1E-5 and abs(y-1)<1E-5) or (abs(x-1)<1E-5 and abs(y+1)<1E-5) or (abs(x+1)<1E-5 and abs(y+1)<1E-5):
+        Corners.append(i)
+print(len(LeftToRight))
+print(len(BottomToTop))
+print(len(Corners))
 with open('AMRmesh.txt', "wb") as fp:
-        pickle.dump((Nodes,EdgeNodes,ElementEdges,Orientations),fp)
-#print(NodesPos)
+    pickle.dump((Nodes,EdgeNodes,ElementEdges,BoundaryNodes,Orientations,BottomToTop,LeftToRight,Corners),fp)

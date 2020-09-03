@@ -200,28 +200,90 @@ def test_TVhSemiInnerProd1():
 
     assert (abs(Ans-2)<1E-5)
 
-# def test_TVhSemInnerProd2():
-#     Nodes         = [[-1,-1],[0,-1],[1,-1],[-1,0],[0,0],[1,0],[-1,1],[0,1],[1,1]]
-#     EdgeNodes     = [[0,1],[4,1],[8,5],[4,7],[7,8],[6,7],[3,6],[0,3],[5,2],[1,2],[3,4],[4,5]]
-#     ElementEdges  = [[9,8,11,1],[0,1,10,7],[10,3,5,6],[11,2,4,3]]                                     
-#     NumBoundaryNodes = [0,1,2,3,5,6,7,8] 
-#     Orientations  = [[1,-1,-1,1],[1,-1,-1,-1],[1,1,-1,-1],[1,-1,-1,-1]]
-#     TestMesh      = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
+def test_TVhInProd1():
+    Nodes         = [[-1,-1],[0,-1],[1,-1],[-1,0],[0,0],[1,0],[-1,1],[0,1],[1,1]]
+    EdgeNodes     = [[0,1],[4,1],[8,5],[4,7],[7,8],[6,7],[3,6],[0,3],[5,2],[1,2],[3,4],[4,5]]
+    ElementEdges  = [[9,8,11,1],[0,1,10,7],[10,3,5,6],[11,2,4,3]]                                     
+    NumBoundaryNodes = [0,1,2,3,5,6,7,8] 
+    Orientations  = [[1,-1,-1,1],[1,-1,-1,-1],[1,1,-1,-1],[1,-1,-1,-1]]
+    TestMesh      = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
 
-#     def Inu(xv):
-#         return np.array([1,1])
-#     def InB(xv):
-#         return np.array([1,1])
-#     Re, Rm, dt, theta = 1, 1, 0.5, 0.5
-#     TestPDE = PDEFullMHD(TestMesh,Re,Rm,Inu,InB,dt,theta)
-
-#     H, GI, D    = TestPDE.HSTVList[0], TestPDE.GISTVList[0], TestPDE.DTVList[0]
-#     Element     = TestMesh.ElementEdges[0]
-#     xP,yP,A,V,E = TestMesh.Centroid(Element,TestMesh.Orientations[0])
-#     Bu          = TestPDE.TVhSemiInProdColumn(Element,0,TestPDE.unx,TestPDE.uny,TestPDE.umx,TestPDE.umy,xP,yP,A,E)
-#     u           = np.concatenate((TestPDE.unx,TestPDE.uny,TestPDE.umx,TestPDE.umy), axis=None)
-#     G           = np.linalg.inv(GI)
-
-#     D, Bu, G  = np.transpose(D), np.transpose(Bu), np.transpose(G)
+    def Inu(xv):
+        return np.array([1,1])
+    def InB(xv):
+        return np.array([1,1])
+    Re, Rm, dt, theta = 1, 1, 0.5, 0.5
+    TestPDE = PDEFullMHD(TestMesh,Re,Rm,Inu,InB,dt,theta)
     
+    lunx,luny,lumx,lumy = TestPDE.GetLocalTVhDOF(0,TestPDE.unx,TestPDE.uny,TestPDE.umx,TestPDE.umy)
+    Ans                 = TestPDE.TVhInProd( 0,lunx,luny,lumx,lumy,lunx,luny,lumx,lumy)
 
+    assert (abs(Ans-2)<1E-5)
+
+def test_Quadrature():
+    Nodes         = [[-1,-1],[0,-1],[1,-1],[-1,0],[0,0],[1,0],[-1,1],[0,1],[1,1]]
+    EdgeNodes     = [[0,1],[4,1],[8,5],[4,7],[7,8],[6,7],[3,6],[0,3],[5,2],[1,2],[3,4],[4,5]]
+    ElementEdges  = [[9,8,11,1],[0,1,10,7],[10,3,5,6],[11,2,4,3]]                                     
+    NumBoundaryNodes = [0,1,2,3,5,6,7,8] 
+    Orientations  = [[1,-1,-1,1],[1,-1,-1,-1],[1,1,-1,-1],[1,-1,-1,-1]]
+    TestMesh      = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
+
+    def Inu(xv):
+        return np.array([1,1])
+    def InB(xv):
+        return np.array([1,1])
+    Re, Rm, dt, theta = 1, 1, 0.5, 0.5
+    TestPDE = PDEFullMHD(TestMesh,Re,Rm,Inu,InB,dt,theta)
+    xxxxP,yyyyP,xxyyP,xyyyP,xxxyP = 0,0,0,0,0
+    xxxP,yyyP,xyyP,xxyP           = 0,0,0,0
+    for u in range(6):
+        x,y   = TestPDE.xs[u],TestPDE.ys[u]
+
+        xxxxP = xxxxP+TestPDE.ws[u]*(x**4)
+        yyyyP = yyyyP+TestPDE.ws[u]*(y**4)
+        xxyyP = xxyyP+TestPDE.ws[u]*(x**2)*(y**2)
+        xyyyP = xyyyP+TestPDE.ws[u]*(x)*(y**3)
+        xxxyP = xxxyP+TestPDE.ws[u]*(x**3)*(y)
+        xxxP  = xxxP+TestPDE.ws[u]*(x**3)
+        yyyP  = yyyP+TestPDE.ws[u]*(y**3)
+        xyyP  = xyyP+TestPDE.ws[u]*(x)*(y**2)
+        xxyP  = xxyP+TestPDE.ws[u]*(x**2)*(y)
+    assert (abs(xxxxP-1/30) <1E-5)
+    assert (abs(yyyyP-1/30) <1E-5)
+    assert (abs(xxyyP-1/180)<1E-5)
+    assert (abs(xxxyP-1/120)<1E-5)
+    assert (abs(xyyyP-1/120)<1E-5)
+    assert (abs(xxxP-1/20)<1E-5)
+    assert (abs(yyyP-1/20)<1E-5)
+    assert (abs(xxyP-1/60)<1E-5)
+    assert (abs(xyyP-1/60)<1E-5)
+
+def test_TVhInProd2():
+    Nodes         = [[-1,-1],[0,-1],[1,-1],[-1,0],[0,0],[1,0],[-1,1],[0,1],[1,1]]
+    EdgeNodes     = [[0,1],[4,1],[8,5],[4,7],[7,8],[6,7],[3,6],[0,3],[5,2],[1,2],[3,4],[4,5]]
+    ElementEdges  = [[9,8,11,1],[0,1,10,7],[10,3,5,6],[11,2,4,3]]                                     
+    NumBoundaryNodes = [0,1,2,3,5,6,7,8] 
+    Orientations  = [[1,-1,-1,1],[1,-1,-1,-1],[1,1,-1,-1],[1,-1,-1,-1]]
+    TestMesh      = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
+
+    def Inu(xv):
+        return np.array([1,1])
+    def InB(xv):
+        return np.array([1,1])
+    Re, Rm, dt, theta = 1, 1, 0.5, 0.5
+    TestPDE = PDEFullMHD(TestMesh,Re,Rm,Inu,InB,dt,theta)
+    
+    K = TestPDE.KTVList[0]
+    assert(abs(K[0,0]-1)    <1E-5) #Area
+    assert(abs(K[2,2]-1/3)  <1E-5) #xxP
+    assert(abs(K[4,4]-1/3)  <1E-5) #yyP
+    assert(abs(K[6,6]-0.2)  <1E-5) #xxxxP
+    assert(abs(K[8,8]-0.2)  <1E-5) #yyyyP
+    assert(abs(K[10,10]-1/9)<1E-5) #xxyyP
+
+    assert(abs(K[8,10]+1/8) <1E-5) #xyyyP
+    assert(abs(K[6,10]+1/8) <1E-5) #xxxyP
+    assert(abs(K[5,7]+1/6)  <1E-5) #xxyP
+    assert(abs(K[4,10]-1/6) <1E-5) #xyyP
+    assert(abs(K[3,7]-1/4)  <1E-5) #xxxP
+    assert(abs(K[4,8]+1/4)  <1E-5) #yyyP

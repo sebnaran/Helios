@@ -15,6 +15,13 @@ class PDEFullMHD(object):
         self.pt5, self.w5  = math.sqrt((5/11)+(2/11)*math.sqrt(5/3)), (124-7*math.sqrt(15))/350
         self.pt6, self.w6 = 1, 1/21
 
+        self.xs = [0.0915762135098,0.8168475729805,0.0915762135098,0.1081030181681,0.4459484909160,0.4459484909160]
+        self.ys = [0.0915762135098,0.0915762135098,0.8168475729805,0.4459484909160,0.1081030181681,0.4459484909160]
+        self.ws = [0.2199034873106/4,0.2199034873106/4,0.2199034873106/4,0.4467631793560/4,0.4467631793560/4,0.4467631793560/4]
+
+        #self.xs = [-0.1081,-0.1081,-0.7838,-0.8168,-0.8168,0.6337]
+        #self.ys = [-0.1081,-0.7838,-0.1081,-0.8168,0.6337,-0.8168]
+        #self.ws = [0.4468,0.4468,0.4468,0.2199,0.2199,0.2199]
         self.Mesh, self.Re, self.Rm, self.dt, self.theta  = Mesh, Re, Rm, dt, theta
         #We initialize the dofs
         #The boundary values on the vel and elec fields are decoupled from the
@@ -35,14 +42,16 @@ class PDEFullMHD(object):
         self.HSTVList   = []
         self.GISTVList  = []
         self.DTVList    = []
+        self.KTVList    = []
         for i in range(len(self.Mesh.ElementEdges)):
-            tempME,tempMV       = self.ElecMagStandMassMat(self.Mesh.ElementEdges[i],self.Mesh.Orientations[i])
-            TempSH,TempGI,TempD = self.TVhSemiInnerPreCompute(i)
+            tempME,tempMV             = self.ElecMagStandMassMat(self.Mesh.ElementEdges[i],self.Mesh.Orientations[i])
+            TempSH,TempGI,TempD,TempK = self.TVhInnerPreCompute(i)
             self.MEList.append(tempME)
             self.MVList.append(tempMV)
             self.HSTVList.append(TempSH)
             self.GISTVList.append(TempGI)
             self.DTVList.append(TempD)
+            self.KTVList.append(TempK)
     ##################################################################################
     ##################################################################################    
     #Initiation of Boundary Conditions/DifferentTypes of Simulations and their updates
@@ -660,13 +669,19 @@ class PDEFullMHD(object):
             k = k+1
         return S/(6*A)     
     
-    def TVhSemiInnerPreCompute(self, ElementNumber):
+    def L(self,x0,y0,x1,y1,x2,y2,x,y):
+        
+        l1 = (x1-x0)*x+(x2-x0)*y+x0
+        l2 = (y1-y0)*x+(y2-y0)*y+y0
+        return l1,l2
+
+    def TVhInnerPreCompute(self, ElementNumber):
         #This function will compute one of the matrices that make the Semi-inner product
         Element     = self.Mesh.ElementEdges[ElementNumber]
         xP,yP,A,V,E = self.Mesh.Centroid(Element,self.Mesh.Orientations[ElementNumber])
-        xyP         = 0
-        xxP         = 0
-        yyP         = 0
+        xyP,xxP,yyP                   = 0,0,0
+        xxxP,yyyP,xxyP,xyyP           = 0,0,0,0
+        xxxxP,yyyyP,xyyyP,xxyyP,xxxyP = 0,0,0,0,0
         for i in range(len(V)-1):
             Node1 = V[i]
             Node2 = V[i+1]
@@ -681,8 +696,25 @@ class PDEFullMHD(object):
             xyP = xyP+(AT/3)*(xh1*yh1+xh2*yh2+xh3*yh3)
             xxP = xxP+(AT/3)*(xh1**2+xh2**2+xh3**2)
             yyP = yyP+(AT/3)*(xh1**2+xh2**2+xh3**2)
+
+            Jac = (x1-xP)*(y2-yP)-(x2-xP)*(y1-yP)
+            for u in range(6):
+                x,y   = self.xs[u],self.ys[u]
+                lx,ly = self.L(xP,yP,x1,y1,x2,y2,x,y)
+                   
+                xxxP  = xxxP+Jac*self.ws[u]*lx**3
+                yyyP  = yyyP+Jac*self.ws[u]*ly**3
+                xxyP  = xxyP+Jac*self.ws[u]*(lx**2)*ly
+                xyyP  = xyyP+Jac*self.ws[u]*(lx)*(ly**2)
+                xxxxP = xxxxP+Jac*self.ws[u]*(lx**4)
+                yyyyP = yyyyP+Jac*self.ws[u]*(ly**4)
+                xyyyP = xyyyP+Jac*self.ws[u]*(lx)*(ly**3)
+                xxyyP = xxyyP+Jac*self.ws[u]*(lx**2)*(ly**2)
+                xxxyP = xxxyP+Jac*self.ws[u]*(lx**3)*(ly)
+
         H = np.zeros((12,12),dtype=float)
         G = np.zeros((12,12),dtype=float)
+        K = np.zeros((12,12),dtype=float)
         H[2,6], H[6,2]  = 2*xP*A,2*xP*A
         H[2,10],H[10,2] = yP*A,yP*A
         H[2,2]          = A
@@ -745,6 +777,61 @@ class PDEFullMHD(object):
         G[10,10]        = yyP+xxP
 
         G[11,11]        = yyP+xxP
+
+        K[0,0]          = A
+        K[0,2],K[2,0]   = A*xP, A*xP
+        K[0,4],K[4,0]   = A*yP, A*yP
+        K[0,6],K[6,0]   = xxP,xxP
+        K[0,8],K[8,0]   = yyP,yyP
+        K[0,10],K[10,0] = xyP,xyP
+
+        K[1,1]          = A
+        K[1,3],K[3,1]   = A*xP,A*xP
+        K[1,5],K[5,1]   = A*yP,A*yP
+        K[1,7],K[7,1]   = xxP,xxP
+        K[1,9],K[9,1]   = yyP,yyP
+        K[1,11],K[11,1] = xyP,xyP
+
+        K[2,2]          = xxP
+        K[2,4],K[4,2]   = xyP,xyP
+        K[2,6],K[6,2]   = xxxP,xxxP
+        K[2,8],K[8,2]   = xyyP,xyyP
+        K[2,10],K[10,2] = xxyP,xxyP
+
+        K[3,3]          = xxP
+        K[3,5],K[5,3]   = xyP,xyP
+        K[3,7],K[7,3]   = xxxP,xxxP 
+        K[3,9],K[9,3]   = xyyP,xyyP
+        K[3,11],K[11,3] = xxyP,xxyP
+
+        K[4,4]          = yyP
+        K[4,6],K[6,4]   = xxyP,xxyP
+        K[4,8],K[8,4]   = yyyP,yyyP
+        K[4,10],K[10,4] = xyyP,xyyP
+
+        K[5,5]          = yyP
+        K[5,7],K[7,5]   = xxyP,xxyP
+        K[5,9],K[9,5]   = yyyP,yyyP
+        K[5,11],K[11,5] = xyyP,xyyP
+
+        K[6,6]          = xxxxP
+        K[6,8],K[8,6]   = xxyyP,xxyyP
+        K[6,10],K[10,6] = xxxyP,xxxyP
+
+        K[7,7]          = xxxxP
+        K[7,9],K[9,7]   = xxyyP,xxyyP
+        K[7,11],K[11,7] = xxxyP,xxxyP
+
+        K[8,8]          = yyyyP
+        K[8,10],K[10,8] = xyyyP,xyyyP
+
+        K[9,9]          = yyyyP
+        K[9,11],K[11,9] = xyyyP,xyyyP
+
+        K[10,10]        = xxyyP
+
+        K[11,11]        = xxyyP   
+ 
         Basis = [self.q0,self.q1,self.q2,self.q3,self.q4,self.q5,self.q6,self.q7,self.q8,self.q9,self.q10,self.q11]
         Num   = len(Element)
         D = np.zeros((4*Num,12),dtype=float)
@@ -773,8 +860,8 @@ class PDEFullMHD(object):
             G[0,j] = oqx
             G[1,j] = oqy
             j= j+1 
-        return H,np.linalg.inv(G),D 
-
+        return H,np.linalg.inv(G),D,K 
+        
     def TVhSemiInProdColumn(self,Element,ElementNumber,unx,uny,umx,umy,xP,yP,A,E):
         #This function will create a column vector, the first two entries 
         #in this vector will be the sum of the x coordinates and y coordinates
@@ -834,7 +921,6 @@ class PDEFullMHD(object):
         xP,yP,A,V,E = self.Mesh.Centroid(Element,self.Mesh.Orientations[ElementNumber])
         Bu          = self.TVhSemiInProdColumn(Element,ElementNumber,unx,uny,umx,umy,xP,yP,A,E)
         Bv          = self.TVhSemiInProdColumn(Element,ElementNumber,vnx,vny,vmx,vmy,xP,yP,A,E)
-        Element     = self.Mesh.ElementEdges[ElementNumber]
 
         Pistaru ,Pistarv = GI.dot(Bu), GI.dot(Bv)
         Piu,     Piv     = D.dot(Pistaru), D.dot(Pistarv)
@@ -843,6 +929,21 @@ class PDEFullMHD(object):
 
         return np.transpose(Pistaru).dot(H).dot(Pistarv)+A*(u-Piu).dot(v-Piv)
 
+    def TVhInProd(self,ElementNumber,unx,uny,umx,umy,vnx,vny,vmx,vmy):
+        #This function computes the inner product in TVh of u against v over the selected element.
+        #The inputed DOF must be local.
+        K, GI, D    = self.KTVList[ElementNumber], self.GISTVList[ElementNumber], self.DTVList[ElementNumber]
+        Element     = self.Mesh.ElementEdges[ElementNumber]
+        xP,yP,A,V,E = self.Mesh.Centroid(Element,self.Mesh.Orientations[ElementNumber])
+        Bu          = self.TVhSemiInProdColumn(Element,ElementNumber,unx,uny,umx,umy,xP,yP,A,E)
+        Bv          = self.TVhSemiInProdColumn(Element,ElementNumber,vnx,vny,vmx,vmy,xP,yP,A,E)
+
+        Pistaru ,Pistarv = GI.dot(Bu), GI.dot(Bv)
+        Piu,     Piv     = D.dot(Pistaru), D.dot(Pistarv)
+        u                = np.concatenate((unx,uny,umx,umy), axis=None)
+        v                = np.concatenate((vnx,vny,vmx,vmy), axis=None)
+
+        return np.transpose(Pistaru).dot(K).dot(Pistarv)+A*(u-Piu).dot(v-Piv)
     
     def GetLocalTVhDOF(self,ElementNumber,Gunx,Guny,Gumx,Gumy):
         #This function will, provided 
