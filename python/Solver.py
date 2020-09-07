@@ -27,7 +27,7 @@ class InexactNewtonTimeInt(object):
         epst   = epsa+self.epsr*n2(G(x0))
         for i in range(maxiter):
             nGxm = n2(G(xm))
-            print(nGxm)
+            #print('err='+str(nGxm))
             if abs(nGxm)<tol:
                 return xm
             else:

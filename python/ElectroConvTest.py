@@ -12,7 +12,8 @@ def ProcessedMesh(Pfile):
     
 Re,Rm,theta   = 1, 1, 0.5
 T                = 0.25
-MTypes = ['Quad','Vor']
+#MTypes = ['Trig','Quad','Vor']
+MTypes = ['OnlyOne']
 def InB(xv):
     return np.array([0,math.cos(xv[0])])
 def Inu(xv):
@@ -23,22 +24,25 @@ def Eb(xvt):
     return math.cos(xvt[0]+xvt[2])
 
 for MType in MTypes:
+    if MType =='OnlyOne':
+        ProcessedFiles = ['PVh=0.0345033.txt']
+        dx = [0.0345033]
     if MType == 'Trig':
-        ProcessedFiles = ['PTh=0.101015.txt','PTh=0.051886.txt','PTh=0.0251418.txt','PTh=0.0125255.txt',\
-                      'PTh=0.0062613.txt']
+        ProcessedFiles = ['PTh=0.101015.txt','PTh=0.051886.txt','PTh=0.0251418.txt']#,'PTh=0.0125255.txt',\
+                      #'PTh=0.0062613.txt']
 
         dx = [0.10101525445522107, 0.05018856132284956, 0.025141822757713456, 0.012525468249897755,\
          0.006261260829309998]
     
     if MType == 'Quad':
-        ProcessedFiles = ['PertPQh=0.166666.txt','PertPQh=0.0833333.txt','PertPQh=0.043478.txt',\
-                      'PertPQh=0.021739.txt','PertPQh=0.010989.txt']
+        ProcessedFiles = ['PertPQh=0.166666.txt','PertPQh=0.0833333.txt','PertPQh=0.043478.txt']#,\
+                      #'PertPQh=0.021739.txt','PertPQh=0.010989.txt']
 
         dx = [0.16666666666666666, 0.08333333333333333, 0.043478260869565216, 0.021739130434782608,\
          0.010989010989010988]
     if MType == 'Vor':
-        ProcessedFiles = ['PVh=0.128037.txt','PVh=0.0677285.txt','PVh=0.0345033.txt','PVh=0.0174767.txt',\
-                      'PVh=0.0087872.txt']
+        ProcessedFiles = ['PVh=0.128037.txt','PVh=0.0677285.txt','PVh=0.0345033.txt']#,'PVh=0.0174767.txt',\
+                      #'PVh=0.0087872.txt']
 
         dx = [0.12803687993289598, 0.06772854614785964, 0.03450327796711771, 0.017476749542968805,\
         0.008787156237382746]

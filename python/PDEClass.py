@@ -37,12 +37,12 @@ class PDEFullMHD(object):
         self.p             = np.zeros(len(Mesh.ElementEdges))
         self.E             = np.zeros(len(self.Mesh.Nodes))
 
-        self.MEList     = []
-        self.MVList     = []
-        self.HSTVList   = []
-        self.GISTVList  = []
-        self.DTVList    = []
-        self.KTVList    = []
+        self.MEList    = []
+        self.MVList    = []
+        self.HSTVList  = []
+        self.GISTVList = []
+        self.DTVList   = []
+        self.KTVList   = []
         for i in range(len(self.Mesh.ElementEdges)):
             tempME,tempMV             = self.ElecMagStandMassMat(self.Mesh.ElementEdges[i],self.Mesh.Orientations[i])
             TempSH,TempGI,TempD,TempK = self.TVhInnerPreCompute(i)
@@ -123,19 +123,20 @@ class PDEFullMHD(object):
         j  = 0
         for Element in self.Mesh.ElementEdges:
             xP,yP,A,V,E = self.Mesh.Centroid(Element,self.Mesh.Orientations[j])
-            for i in range(len(V)-1):
-                Node1 = V[i]
-                Node2 = V[i+1]
-                x1,y1 = Node1[0],Node1[1]
-                x2,y2 = Node2[0],Node2[1]
-            
-                xh1,yh1 = (x1+x2)/2,(y1+y2)/2
-                xh2,yh2 = (x1+xP)/2,(y1+yP)/2
-                xh3,yh3 = (x2+xP)/2,(y2+yP)/2
-
-                AT    = 0.5*abs( (x2-xP)*(y1-yP)-(y2-yP)*(x1-xP) )
-                ph[j] = ph[j]+(AT/3)*(p([xh1,yh1])+p([xh2,yh2])+p([xh3,yh3]))
+            ph[j]       = A*p([xP,yP])
             j = j+1
+            # for i in range(len(V)-1):
+            #     Node1 = V[i]
+            #     Node2 = V[i+1]
+            #     x1,y1 = Node1[0],Node1[1]
+            #     x2,y2 = Node2[0],Node2[1]
+            
+            #     xh1,yh1 = (x1+x2)/2,(y1+y2)/2
+            #     xh2,yh2 = (x1+xP)/2,(y1+yP)/2
+            #     xh3,yh3 = (x2+xP)/2,(y2+yP)/2
+
+            #     AT    = 0.5*abs( (x2-xP)*(y1-yP)-(y2-yP)*(x1-xP) )
+            #     ph[j] = ph[j]+(AT/3)*(p([xh1,yh1])+p([xh2,yh2])+p([xh3,yh3]))
         return ph
 
     def MagDOFs(self,Func):
@@ -223,7 +224,7 @@ class PDEFullMHD(object):
     def NumFlowDOF(self):
         return 2*len(self.Mesh.NumInternalNodes)+2*len(self.Mesh.NumInternalMidNodes)+len(self.Mesh.ElementEdges)-1
 
-    def SetFlowBCAndSource(self,ub):
+    def SetFlowBC(self,ub):
         self.ub = ub  #source terms and BC
 
     def Flowupdatef(self,t):
@@ -237,9 +238,9 @@ class PDEFullMHD(object):
     def FlowComputeBC(self,t):
         def dummyub(xv):
             return self.ub([xv[0],xv[1],t+self.dt])
-        tempubn              = self.NodalDOFs(dummyub,self.Mesh.Nodes)
+        tempubn              = self.NodalDOFs(dummyub,self.Mesh.BNodes)
         self.ubnx,self.ubny  = self.DecompIntoCoord(tempubn)
-        tempum               = self.NodalDOFs(dummyub,self.Mesh.MidNodes)
+        tempum               = self.NodalDOFs(dummyub,self.Mesh.BMidNodes)
         self.ubmx, self.ubmy = self.DecompIntoCoord(tempum)
 
     def FlowupdateBC(self,unx,uny,umx,umy):
@@ -295,7 +296,7 @@ class PDEFullMHD(object):
         p[0:len(p)-1]   = Cutx[4]
         p[len(p)-1]     = -np.sum(p[0:len(p)-1])
         unx,uny,umx,umy = self.FlowupdateBC(unx,uny,umx,umy)
-        y = np.zeros((len(x))) 
+        y = np.zeros((len(x)),dtype=float) 
         k = 0 
         for i in self.Mesh.NumInternalNodes:
             Cells = self.Mesh.NodestoCells[i]
@@ -310,12 +311,12 @@ class PDEFullMHD(object):
                 lunx ,luny ,lumx ,lumy  = self.GetLocalTVhDOF(Cell,unx,uny,umx,umy)
                 lv1nx,lv1ny,lv1mx,lv1my = self.GetLocalTVhDOF(Cell,v1nx,v1ny,v1mx,v1my)
                 lv2nx,lv2ny,lv2mx,lv2my = self.GetLocalTVhDOF(Cell,v2nx,v2ny,v2mx,v2my)
-                
-                divv1 = self.DIVu(Cell,lv1nx,lv1ny,lv1mx,lv1my)
-                y[k]  = y[k]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv1nx,lv1ny,lv1mx,lv1my)-self.PhInProd(Cell,p[Cell],divv1)
 
-                divv2      = self.DIVu(Cell,lv2nx,lv2ny,lv2mx,lv2my)
-                y[k+intN]  = y[k+intN]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv2nx,lv2ny,lv2mx,lv2my)-self.PhInProd(Cell,p[Cell],divv2)
+                divv1,A = self.DIVu(Cell,lv1nx,lv1ny,lv1mx,lv1my)
+                y[k]  = y[k]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv1nx,lv1ny,lv1mx,lv1my)-self.PhInProd(Cell,p[Cell],divv1*A)
+
+                divv2,A      = self.DIVu(Cell,lv2nx,lv2ny,lv2mx,lv2my)
+                y[k+intN]  = y[k+intN]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv2nx,lv2ny,lv2mx,lv2my)-self.PhInProd(Cell,p[Cell],divv2*A)
             k = k+1
         k = 0
         for i in self.Mesh.NumInternalMidNodes:
@@ -332,20 +333,60 @@ class PDEFullMHD(object):
                 lv1nx,lv1ny,lv1mx,lv1my = self.GetLocalTVhDOF(Cell,v1nx,v1ny,v1mx,v1my)
                 lv2nx,lv2ny,lv2mx,lv2my = self.GetLocalTVhDOF(Cell,v2nx,v2ny,v2mx,v2my)
                 
-                divv1       = self.DIVu(Cell,lv1nx,lv1ny,lv1mx,lv1my)
-                y[k+2*intN] = y[k+2*intN]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv1nx,lv1ny,lv1mx,lv1my)-self.PhInProd(Cell,p[Cell],divv1)
+                divv1,A       = self.DIVu(Cell,lv1nx,lv1ny,lv1mx,lv1my)
+                y[k+2*intN] = y[k+2*intN]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv1nx,lv1ny,lv1mx,lv1my)-self.PhInProd(Cell,p[Cell],divv1*A)
 
-                divv2             = self.DIVu(Cell,lv2nx,lv2ny,lv2mx,lv2my)
-                y[k+2*intN+intMN] = y[k+2*intN+intMN]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv2nx,lv2ny,lv2mx,lv2my)-self.PhInProd(Cell,p[Cell],divv2)
+                divv2,A             = self.DIVu(Cell,lv2nx,lv2ny,lv2mx,lv2my)
+                y[k+2*intN+intMN] = y[k+2*intN+intMN]+(1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv2nx,lv2ny,lv2mx,lv2my)-self.PhInProd(Cell,p[Cell],divv2*A)
+                #if k+2*intN+intMN==281:
+            #         print(Cells)
+            #         print(Cell)
+                    
+            #         print("281")
+            #         print('Semiinner= '+str((1/self.Re)*self.TVhSemiInProd(Cell,lunx,luny,lumx,lumy,lv2nx,lv2ny,lv2mx,lv2my)))
+            #         print('Ph='+str(self.PhInProd(Cell,p[Cell],divv2)))
+            #         #print('divv='+str(divv2))
+            #         #print('p='+str(p[Cell]))
+            #         xP,yP,A,V,E = self.Mesh.Centroid(self.Mesh.ElementEdges[Cell],self.Mesh.Orientations[Cell])
+            #         print(V)
+            #         print('Area='+str(A))
+            # # if abs(y[k+2*intN+intMN])>0.1:
+            #     print(Cells)
+            #     for Cell in Cells:
+            #         xP,yP,A,V,E = self.Mesh.Centroid(self.Mesh.ElementEdges[Cell],self.Mesh.Orientations[Cell])
+            #         print(V)
             k = k+1
         k = 0
         for i in range(len(self.Mesh.ElementEdges)-1):
             lunx ,luny ,lumx ,lumy  = self.GetLocalTVhDOF(i,unx,uny,umx,umy)
-            Divu                    = self.DIVu(i,lunx,luny,lumx,lumy)
-            y[k+2*intN+2*intMN]     = y[k+2*intN+2*intMN]+self.PhInProd(i,Divu,1)-self.PhInProd(len(self.Mesh.ElementEdges)-1,Divu,1)
+            Divu,A                    = self.DIVu(i,lunx,luny,lumx,lumy)
+            y[k+2*intN+2*intMN]     = y[k+2*intN+2*intMN]+self.PhInProd(i,Divu*A,1)-self.PhInProd(len(self.Mesh.ElementEdges)-1,Divu*A,1)
             k = k+1
         return y
 
+    def Splity(self,y):
+        intN  = len(self.Mesh.NumInternalNodes) #Number of internal dofs for ux
+        intBN = len(self.Mesh.NumInternalMidNodes)
+        Cuty  = np.split(y,[intN,2*intN,2*intN+intBN,2*intN+2*intBN])
+        ynx   = np.zeros(len(self.Mesh.Nodes))
+        yny   = np.zeros(len(self.Mesh.Nodes))
+        ymx   = np.zeros(len(self.Mesh.MidNodes))
+        ymy   = np.zeros(len(self.Mesh.MidNodes))
+        yp    = np.zeros(len(self.Mesh.ElementEdges))
+        j = 0
+        for i in self.Mesh.NumInternalNodes:
+            ynx[i] = Cuty[0][j]
+            yny[i] = Cuty[1][j]
+            j = j+1
+        j = 0
+        for i in self.Mesh.NumInternalMidNodes:
+            ymx[i] = Cuty[2][j]
+            ymy[i] = Cuty[3][j]
+            j = j+1
+
+        yp[0:len(yp)-1] = Cuty[4]
+        yp[len(yp)-1]   = -np.sum(yp[0:len(yp)-1])
+        return ynx,yny,ymx,ymy,yp
     ##########################################################################################
     ##########################################################################################
     #Here are the interface to Solver functions regarding a tests involving only the electromagnetics.
@@ -641,13 +682,13 @@ class PDEFullMHD(object):
         #This function integrates two functions in Ph over the provided element.
         Element = self.Mesh.ElementEdges[ElementNumber]
         A,V,E = self.Mesh.Area(Element,self.Mesh.Orientations[ElementNumber])
-        return ph*A*qh
+        return ph*qh/A
     
     def PhL2Norm(self,ph):
         Norm, j = 0,0
-        for Element in ElementEdges:
+        for Element in self.Mesh.ElementEdges:
             A,V,E = self.Mesh.Area(Element,self.Mesh.Orientations[j])
-            Norm  = Norm+A*ph[j]*ph[j]
+            Norm  = Norm+ph[j]*ph[j]/A
             j = j+1
         return math.sqrt(Norm)
     
@@ -667,13 +708,20 @@ class PDEFullMHD(object):
             etimesnormal = [y2-y1,x1-x2]
             S = S+(unx[i]+unx[i+1]+4*umx[i])*etimesnormal[0]+(uny[i]+uny[i+1]+4*umy[i])*etimesnormal[1]
             k = k+1
-        return S/(6*A)     
+        return S/(6*A),A     
     
     def L(self,x0,y0,x1,y1,x2,y2,x,y):
-        
+        # D = (x1-x0)*(y2-y0)-(x2-x0)*(y1-y0)
+        # xtemp = x-x0
+        # ytemp = y-y0
+
+        # l1 = (y2-y0)*xtemp+(x0-x2)*ytemp
+        # l2 = (y0-y1)*xtemp+(x1-x0)*ytemp
+        # return l1/D,l2/D
         l1 = (x1-x0)*x+(x2-x0)*y+x0
         l2 = (y1-y0)*x+(y2-y0)*y+y0
         return l1,l2
+        
 
     def TVhInnerPreCompute(self, ElementNumber):
         #This function will compute one of the matrices that make the Semi-inner product
@@ -687,7 +735,7 @@ class PDEFullMHD(object):
             Node2 = V[i+1]
             x1,y1 = Node1[0],Node1[1]
             x2,y2 = Node2[0],Node2[1]
-            
+        
             xh1,yh1 = (x1+x2)/2,(y1+y2)/2
             xh2,yh2 = (x1+xP)/2,(y1+yP)/2
             xh3,yh3 = (x2+xP)/2,(y2+yP)/2
@@ -695,17 +743,17 @@ class PDEFullMHD(object):
             AT  = 0.5*abs( (x2-xP)*(y1-yP)-(y2-yP)*(x1-xP) )
             xyP = xyP+(AT/3)*(xh1*yh1+xh2*yh2+xh3*yh3)
             xxP = xxP+(AT/3)*(xh1**2+xh2**2+xh3**2)
-            yyP = yyP+(AT/3)*(xh1**2+xh2**2+xh3**2)
+            yyP = yyP+(AT/3)*(yh1**2+yh2**2+yh3**2)
 
-            Jac = (x1-xP)*(y2-yP)-(x2-xP)*(y1-yP)
+            Jac = abs( (x1-xP)*(y2-yP)-(x2-xP)*(y1-yP) )
             for u in range(6):
                 x,y   = self.xs[u],self.ys[u]
                 lx,ly = self.L(xP,yP,x1,y1,x2,y2,x,y)
                    
-                xxxP  = xxxP+Jac*self.ws[u]*lx**3
-                yyyP  = yyyP+Jac*self.ws[u]*ly**3
-                xxyP  = xxyP+Jac*self.ws[u]*(lx**2)*ly
-                xyyP  = xyyP+Jac*self.ws[u]*(lx)*(ly**2)
+                xxxP  = xxxP +Jac*self.ws[u]*lx**3
+                yyyP  = yyyP +Jac*self.ws[u]*ly**3
+                xxyP  = xxyP +Jac*self.ws[u]*(lx**2)*ly
+                xyyP  = xyyP +Jac*self.ws[u]*(lx)*(ly**2)
                 xxxxP = xxxxP+Jac*self.ws[u]*(lx**4)
                 yyyyP = yyyyP+Jac*self.ws[u]*(ly**4)
                 xyyyP = xyyyP+Jac*self.ws[u]*(lx)*(ly**3)
@@ -715,6 +763,7 @@ class PDEFullMHD(object):
         H = np.zeros((12,12),dtype=float)
         G = np.zeros((12,12),dtype=float)
         K = np.zeros((12,12),dtype=float)
+
         H[2,6], H[6,2]  = 2*xP*A,2*xP*A
         H[2,10],H[10,2] = yP*A,yP*A
         H[2,2]          = A
@@ -746,6 +795,7 @@ class PDEFullMHD(object):
         H[10,10]        = yyP+xxP
 
         H[11,11]        = yyP+xxP
+
         G[2,6], G[6,2]  = 2*xP*A,2*xP*A
         G[2,10],G[10,2] = yP*A,yP*A
         G[2,2]          = A
@@ -871,12 +921,12 @@ class PDEFullMHD(object):
         N   = len(Element)
         B   = np.zeros((12),dtype=float)
 
-        Div = self.DIVu(ElementNumber,unx,uny,umx,umy)
+        Div,A = self.DIVu(ElementNumber,unx,uny,umx,umy)
         B[0] = np.sum(unx)+np.sum(umx)
         B[1] = np.sum(uny)+np.sum(umy)
         unx = np.append(unx,unx[0])
         uny = np.append(uny,uny[0])
-
+        
         for i in range(N):
             Edge = E[i]
             Node1,Node2  = self.Mesh.Nodes[Edge[0]],self.Mesh.Nodes[Edge[1]]
@@ -900,16 +950,16 @@ class PDEFullMHD(object):
             udnh = umx[i]*en[0]+umy[i]*en[1]
             udn2 = unx[i+1]*en[0]+uny[i+1]*en[1]
 
-            B[6] = B[6]-(1/3)*(x1*udn1+4*xh*udnh+x2*udn2)
-            B[7] = B[7]-(1/3)*(y1*udn1+4*yh*udnh+y2*udn2)
-            B[8] = B[8]-(1/3)*(x1*udn1+4*xh*udnh+x2*udn2)
-            B[9] = B[9]-(1/3)*(y1*udn1+4*yh*udnh+y2*udn2)
+            B[6] = B[6]-(1/3)*(x1*udn1+4*xh*udnh+x2*udn2)#q7
+            B[7] = B[7]-(1/3)*(y1*udn1+4*yh*udnh+y2*udn2)#q8
+            B[8] = B[8]-(1/3)*(x1*udn1+4*xh*udnh+x2*udn2)#q9
+            B[9] = B[9]-(1/3)*(y1*udn1+4*yh*udnh+y2*udn2)#q10
             
         #Compute T2
-        B[6] = B[6]+2*A*xP*Div
-        B[7] = B[7]+2*A*yP*Div
-        B[8] = B[8]+2*A*xP*Div
-        B[9] = B[9]+2*A*yP*Div
+        B[6] = B[6]+2*A*xP*Div#q7
+        B[7] = B[7]+2*A*yP*Div#q8
+        B[8] = B[8]+2*A*xP*Div#q9
+        B[9] = B[9]+2*A*yP*Div#q10
         
         return B
 
@@ -926,8 +976,7 @@ class PDEFullMHD(object):
         Piu,     Piv     = D.dot(Pistaru), D.dot(Pistarv)
         u                = np.concatenate((unx,uny,umx,umy), axis=None)
         v                = np.concatenate((vnx,vny,vmx,vmy), axis=None)
-
-        return np.transpose(Pistaru).dot(H).dot(Pistarv)+A*(u-Piu).dot(v-Piv)
+        return np.transpose(Pistaru).dot(H.dot(Pistarv))+A*(u-Piu).dot(v-Piv)
 
     def TVhInProd(self,ElementNumber,unx,uny,umx,umy,vnx,vny,vmx,vmy):
         #This function computes the inner product in TVh of u against v over the selected element.
@@ -942,8 +991,9 @@ class PDEFullMHD(object):
         Piu,     Piv     = D.dot(Pistaru), D.dot(Pistarv)
         u                = np.concatenate((unx,uny,umx,umy), axis=None)
         v                = np.concatenate((vnx,vny,vmx,vmy), axis=None)
-
-        return np.transpose(Pistaru).dot(K).dot(Pistarv)+A*(u-Piu).dot(v-Piv)
+        ans1             = np.transpose(Pistaru).dot( K.dot(Pistarv) )
+        ans2             = A*(u-Piu).dot(v-Piv)
+        return np.transpose(Pistaru).dot(K.dot(Pistarv))+A*(u-Piu).dot(v-Piv)
     
     def GetLocalTVhDOF(self,ElementNumber,Gunx,Guny,Gumx,Gumy):
         #This function will, provided 
@@ -967,3 +1017,17 @@ class PDEFullMHD(object):
             lumy[i] = Gumy[Edge]
 
         return lunx,luny,lumx,lumy
+
+    def TVhL2Norm(self,unx,uny,umx,umy):
+        Norm = 0
+        for i in range(len(self.Mesh.ElementEdges)):
+            lunx,luny,lumx,lumy = self.GetLocalTVhDOF(i,unx,uny,umx,umy)
+            Norm = Norm+self.TVhInProd(i,lunx,luny,lumx,lumy,lunx,luny,lumx,lumy)
+        return math.sqrt(Norm)
+
+    def TVhH1Norm(self,unx,uny,umx,umy):
+        Norm = 0
+        for i in range(len(self.Mesh.ElementEdges)):
+            lunx,luny,lumx,lumy = self.GetLocalTVhDOF(i,unx,uny,umx,umy)
+            Norm = Norm+self.TVhSemiInProd(i,lunx,luny,lumx,lumy,lunx,luny,lumx,lumy)
+        return math.sqrt(Norm) 
