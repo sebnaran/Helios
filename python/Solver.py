@@ -3,6 +3,7 @@ from scipy.sparse.linalg import gmres
 from numpy.linalg import norm as n2
 import numpy as np
 import math
+import time
 
 class InexactNewtonTimeInt(object):
     def __init__(self):
@@ -13,7 +14,7 @@ class InexactNewtonTimeInt(object):
         self.gamma  = 0.9
         self.epsr   = 1E-4
 
-    def Newtoniter(self,G,x0,ndof,tol,maxiter):
+    def Newtoniter(self,G,x0,ndof,tol,maxiter,PDE):
         #This function will perform a Newton Iteration
         #To find the zeroes of the function G provided the initial guess x0
         #Within the tolerance tol in the 2-norm. ndof is the number of unknowns.
@@ -27,6 +28,7 @@ class InexactNewtonTimeInt(object):
         epst   = epsa+self.epsr*n2(G(x0))
         for i in range(maxiter):
             nGxm = n2(G(xm))
+            #print(i)
             #print('err='+str(nGxm))
             if abs(nGxm)<tol:
                 return xm
@@ -37,8 +39,12 @@ class InexactNewtonTimeInt(object):
                 etamA = self.gamma*(nGxm/nGxmm1)**(self.alpha)
                 etamB = min([self.etamax,max([etamA,self.gamma*etamm1**self.alpha])])
                 etam  = min([self.etamax,max([etamB,self.gamma*(epst/nGxm)])])
+                start = time.time()
+                PDE.evalcount = 0
                 delxm, exitcode = gmres(DGxm,-Gxm,atol=etam*nGxm)
-                
+                end   = time.time()
+                #print('TimeFor1gmres'+str(end-start))
+                #print('evalcount='+str(PDE.evalcount))
                 xm              = xm+delxm
                 Gxm             = G(xm)
                 etamm1 = etam
