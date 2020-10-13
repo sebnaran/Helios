@@ -27,7 +27,7 @@ def SaveInmFile(name,aname,array):
         
         file.writelines('];')
 Re,Rm,theta   = 1, 1, 0.5
-T                = 0.5
+T             = 0.05
 #MTypes = ['Trig','Quad','Vor']
 #MTypes = ['OnlyOne']
 MTypes = ['Small']

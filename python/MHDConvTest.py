@@ -69,8 +69,8 @@ for MType in MTypes:
         dx = [0.12803687993289598, 0.06772854614785964, 0.03450327796711771, 0.017476749542968805,\
         0.008787156237382746]
     if MType == 'Small':
-        ProcessedFiles = ['PTh=0.2.txt','PTh=0.101015.txt']
-        dx = [0.2,0.101015]
+        ProcessedFiles = ['PTh=0.408248.txt','PTh=0.2.txt']#,'PTh=0.101015.txt']
+        dx = [0.408248,0.2]#,0.101015]
     i = 0
     for Pfile in ProcessedFiles:
         print(Pfile)

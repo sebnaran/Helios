@@ -28,8 +28,8 @@ class InexactNewtonTimeInt(object):
         epst   = epsa+self.epsr*n2(G(x0))
         for i in range(maxiter):
             nGxm = n2(G(xm))
-            #print(i)
-            #print('err='+str(nGxm))
+            print(i)
+            print('err='+str(nGxm))
             if abs(nGxm)<tol:
                 return xm
             else:
@@ -41,7 +41,7 @@ class InexactNewtonTimeInt(object):
                 etam  = min([self.etamax,max([etamB,self.gamma*(epst/nGxm)])])
                 start = time.time()
                 PDE.evalcount = 0
-                delxm, exitcode = gmres(DGxm,-Gxm,atol=etam*nGxm)
+                delxm, exitcode = gmres(DGxm,-Gxm, tol=etam*nGxm)
                 end   = time.time()
                 #print('TimeFor1gmres'+str(end-start))
                 #print('evalcount='+str(PDE.evalcount))
@@ -51,4 +51,5 @@ class InexactNewtonTimeInt(object):
                 nGxmm1 = nGxm
                 if exitcode>1E-5:
                     print('Error Ocurred in the GMRES Iteration')
+                    print('exitcode='+str(exitcode))
         print('Surpassed max number of iter without arriving at sol')
