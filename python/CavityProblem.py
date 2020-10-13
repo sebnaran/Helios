@@ -98,7 +98,7 @@ for MType in MTypes:
         for t in time:
             PDE.MHDComputeBC(t)
             PDE.MHDComputeSources(t)
-            tempx = Solver.Newtoniter(PDE.MHDG,PDE.MHDConcatenate(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p),PDE.SetNumMHDDof(),1E-5,50,PDE)
+            tempx = Solver.Newtoniter(PDE.MHDG,PDE.MHDConcatenate(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p),PDE.SetNumMHDDof(),1E-4,5000,PDE)
             PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p = PDE.MHDUpdateInt(tempx,PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p)
             PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.E             = PDE.MHDUpdateBC(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.E)
         i = i+1
