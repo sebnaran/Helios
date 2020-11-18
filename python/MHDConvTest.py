@@ -4,6 +4,19 @@ import numpy as np
 import math
 from Solver import InexactNewtonTimeInt
 import pickle
+import time as tim
+
+def SaveInmFile(name,aname,array):
+    #This function will save the array with name aname in a matlab m-file with the name.
+    with open("../MATLAB/"+name+".m",'w') as file:
+        file.writelines(aname+" = [")
+        for e in range(len(array)):
+            if e == 0:
+                file.writelines( str( array[e] ) )
+            else:
+                file.writelines( ","+str( array[e] ) )
+        
+        file.writelines('];')
 
 def ProcessedMesh(Pfile):
     with open(Pfile, "rb") as fp:   # Unpickling
@@ -32,6 +45,8 @@ uL = []
 BL = []
 EL = []
 pL = []
+divus = []
+divBs = []
 def f(xv,t):
     y1 = math.cos(t+xv[0])**2-math.cos(xv[1])+2*math.exp(t)*math.cos(xv[1])\
          +math.exp(t)*math.cos(xv[1])*math.cos(t+xv[0])**2
@@ -80,19 +95,49 @@ for MType in MTypes:
         pL.append(Pfile)
         Nodes,EdgeNodes,ElementEdges,BoundaryNodes,Orientations = ProcessedMesh(Pfile)
         Mesh = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
-        dt = 0.05*dx[i]**2
+        dt = 0.00005*dx[i]**2
         PDE    = PDEFullMHD(Mesh,Re,Rm,Inu,InB,dt,theta)
         PDE.SetMHDBCandSource(exactu,exactE,f,h)
         Solver = InexactNewtonTimeInt()
         time   = np.arange(0,T,dt)
         for t in time:
+            Masserr = 0
+            for j in range(len(Mesh.ElementEdges)):
+                lunx,luny,lumx,lumy = PDE.GetLocalTVhDOF(j,PDE.unx,PDE.uny,PDE.umx,PDE.umy)
+                divu, A = PDE.DIVu(j,lunx,luny,lumx,lumy)
+                Masserr = Masserr+PDE.PhInProd(i,divu*A,divu*A)
+            Masserr = math.sqrt(Masserr)
+            print('DIVu='+str(Masserr))
+            #print('Divu='+str(Masserr))
+            divB = PDE.BDivSquared(PDE.B)
+            #print('DivB='+str(divB))
+            divus.append(Masserr)
+            divBs.append(divB)
+            
             PDE.MHDComputeBC(t)
             PDE.MHDComputeSources(t)
-            tempx = Solver.Newtoniter(PDE.MHDG,PDE.MHDConcatenate(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p),PDE.SetNumMHDDof(),1E-5,50,PDE)
+            unx,uny,umx,umy,B,E,p = PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p
+            unx,uny,umx,umy,E = PDE.MHDUpdateBC(unx,uny,umx,umy,E)
+            start = tim.time()
+            tempx = Solver.Newtoniter(PDE.MHDG,PDE.MHDConcatenate(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p),PDE.SetNumMHDDof(),1E-3,5000000,PDE,unx,uny,umx,umy,B,E,p)
+            print('len='+str(len(tempx)) )
+            u = 0
+            for x in tempx:
+                print(x)
+                u=u+1
+                print(u)
+            end = tim.time()
+            print('time='+str(end-start))
             PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p = PDE.MHDUpdateInt(tempx,PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p)
             PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.E             = PDE.MHDUpdateBC(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.E)
+            divB = PDE.BDivSquared(PDE.B)
+            print('----------------------------------------------------')
+            #print('finished Newton Iterations')
+            #print('Current L2 Norm on DivB='+str(divB))
             
-
+        SaveInmFile('ftime','time',time)
+        SaveInmFile('fDivu','Divu',divus)
+        SaveInmFile('fDivB','DivB',divBs)
         def exu(xv):
             return exactu(xv,T)
 
@@ -105,9 +150,9 @@ for MType in MTypes:
         def exp(xv):
             return exactp(xv,T-dt*theta)
         
-        tempxun   = PDE.NodalDOFs(exu,Mesh.Nodes)
+        tempxun     = PDE.NodalDOFs(exu,Mesh.Nodes)
         exunx,exuny = PDE.DecompIntoCoord(tempxun)
-        tempxum   = PDE.NodalDOFs(exu,Mesh.MidNodes)
+        tempxum     = PDE.NodalDOFs(exu,Mesh.MidNodes)
         exumx,exumy = PDE.DecompIntoCoord(tempxum)
         unxerr,unyerr = PDE.unx-exunx,PDE.uny-exuny
         umxerr,umyerr = PDE.umx-exumx,PDE.umy-exumy

@@ -113,7 +113,12 @@ for MType in MTypes:
         momerr  = PDE.TVhL2Norm(fnx,fny,fmx,fmy)
         Farerr  = PDE.EhL2Norm(farf)
         Elecerr = PDE.VhL2Norm(elecf)
-        Masserr = PDE.PhL2Norm(divf) 
+        Masserr = 0
+        for j in range(len(Mesh.ElementEdges)):
+            lunx,luny,lumx,lumy = PDE.GetLocalTVhDOF(j,PDE.unx,PDE.uny,PDE.umx,PDE.umy)
+            divu, A = PDE.DIVu(j,lunx,luny,lumx,lumy)
+            Masserr = Masserr+PDE.PhInProd(i,divu*A,divu*A)
+        Masserr = math.sqrt(Masserr)
 
         print('momerr='+str(momerr))
         print('Farerr='+str(Farerr))

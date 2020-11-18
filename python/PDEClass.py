@@ -3,6 +3,7 @@ from scipy.sparse import csr_matrix
 from scipy.sparse import lil_matrix
 import math
 import numpy as np
+from numpy.linalg import norm as n2
 
 class PDEFullMHD(object):
     def __init__(self,Mesh,Re,Rm,Inu,InB,dt,theta):
@@ -34,8 +35,8 @@ class PDEFullMHD(object):
         tempum             = self.NodalDOFs(Inu,self.Mesh.MidNodes)
         self.umx, self.umy = self.DecompIntoCoord(tempum)
         self.B             = self.MagDOFs(InB)
-        self.p             = np.zeros(len(Mesh.ElementEdges))
-        self.E             = np.zeros(len(self.Mesh.Nodes))
+        self.p             = np.zeros(len(Mesh.ElementEdges),dtype = float)
+        self.E             = np.zeros(len(self.Mesh.Nodes),  dtype = float)
         
         self.evalcount = 0
         self.MRot    = self.Rot(self.Mesh.EdgeNodes,self.Mesh.Nodes)
@@ -138,6 +139,28 @@ class PDEFullMHD(object):
         c = len(self.Mesh.EdgeNodes)
         d = len(self.Mesh.ElementEdges)
         return 3*a + 2*b + c + d - 1
+    
+    # def MHDSplitdelx(self,delx):
+    #     intn  = len(self.Mesh.NumInternalNodes)
+    #     intmn = len(self.Mesh.NumInternalMidNodes)
+    #     intE  = len(self.Mesh.EdgeNodes)
+    #     intC  = len(self.Mesh.ElementEdges)
+
+    #     cut1 = intn
+    #     cut2 = cut1+intn
+    #     cut3 = cut2+intmn
+    #     cut4 = cut3+intmn
+    #     cut5 = cut4+intE
+    #     cut6 = cut5+intC
+
+    #     Cutdelx = np.split(delx,[cut1,cut2,cut3,cut4,cut5,cut6])
+    #     delunx  = np.zeros(intn, dtype = float)
+    #     deluny  = np.zeros(intn, dtype = float)
+    #     delE    = np.zeros(intn, dtype = float)
+    #     delumx  = np.zeros(intmn,dtype = float)
+    #     delumy  = np.zeros(intmn,dtype = float)
+    #     delB    = np.zeros(intE, dtype = float)
+    #     delp    = np.zeros(intC, dtype = float)
 
     def MHDUpdateInt(self,x,unx,uny,umx,umy,B,E,p):
         cut1 = len(self.Mesh.NumInternalNodes) #Number of internal dofs for ux
@@ -147,35 +170,65 @@ class PDEFullMHD(object):
         cut5 = cut4+len(self.B)                #Number of dofs for B
         cut6 = cut5+cut1                       #The number of internal dofs for E is the same as for the vel field.
         Cutx = np.split(x,[cut1,cut2,cut3,cut4,cut5,cut6])
+        runx = unx*0
+        runy = uny*0
+        rumx = umx*0
+        rumy = umy*0
+        rB   = B*0
+        rE   = E*0
+        rp   = p*0
+        
+        for i in self.Mesh.NumBoundaryNodes:
+            runx[i] = unx[i]
+            runy[i] = uny[i]
+            rE[i]   = E[i]
+        for i in self.Mesh.NumBMidNodes:
+            rumx[i] = umx[i]
+            rumy[i] = umy[i]
         j = 0
         for i in self.Mesh.NumInternalNodes:
-            unx[i] = Cutx[0][j]
-            uny[i] = Cutx[1][j]
-            E[i]   = Cutx[5][j]
+            runx[i] = Cutx[0][j]
+            runy[i] = Cutx[1][j]
+            rE[i]   = Cutx[5][j]
             j = j+1
         j = 0
         for i in self.Mesh.NumInternalMidNodes:
-            umx[i] = Cutx[2][j]
-            umy[i] = Cutx[3][j]
+            rumx[i] = Cutx[2][j]
+            rumy[i] = Cutx[3][j]
             j = j+1
-        B = Cutx[4]
-        p[0:len(p)-1]   = Cutx[6]
-        p[len(p)-1]     = -np.sum(p[0:len(p)-1])
-        return unx,uny,umx,umy,B,E,p
+        rB = Cutx[4]
+        rp[0:len(rp)-1]   = Cutx[6]
+        rp[len(rp)-1]     = -np.sum(p[0:len(p)-1])
+        return runx,runy,rumx,rumy,rB,rE,rp
 
     def MHDUpdateBC(self,unx,uny,umx,umy,E):
+        runx = unx*0
+        runy = uny*0
+        rumx = umx*0
+        rumy = umy*0
+        rE   = E*0
+        
+        for i in self.Mesh.NumInternalNodes:
+            runx[i] = unx[i]
+            runy[i] = uny[i]
+            rE[i]   = E[i]
+
+        for i in self.Mesh.NumInternalMidNodes:
+            rumx[i] = umx[i]
+            rumy[i] = umy[i]
+
         j = 0
         for i in self.Mesh.NumBoundaryNodes:
-            unx[i] = self.ubnx[j]
-            uny[i] = self.ubny[j]
-            E[i]   = self.Ebarr[j]
+            runx[i] = self.ubnx[j]
+            runy[i] = self.ubny[j]
+            rE[i]   = self.Ebarr[j]
             j      = j+1
         j = 0
         for i in self.Mesh.NumBMidNodes:
-            umx[i] = self.ubmx[j]
-            umy[i] = self.ubmy[j]
+            rumx[i] = self.ubmx[j]
+            rumy[i] = self.ubmy[j]
             j      = j+1
-        return unx,uny,umx,umy,E
+        return runx,runy,rumx,rumy,rE
 
     def SetMHDBCandSource(self,ub,Eb,f,h):
         self.ub,self.Eb,self.f,self.h = ub,Eb,f,h
@@ -273,9 +326,6 @@ class PDEFullMHD(object):
                     #+Jn.dot(self.MVList[Cell].dot(v1xB))
                     #UseWithNewDisc
                     
-                    
-                
-                
                 y[k+intN]  = y[k+intN]\
                     +self.TVhInProd(Cell,lnx,lny,lmx,lmy,lv2nx,lv2ny,lv2mx,lv2my)\
                     +(1/self.Re)*self.TVhSemiInProd(Cell,locunthetax,locunthetay, locumthetax,locumthetay,lv2nx,lv2ny,lv2mx,lv2my)\
@@ -332,9 +382,8 @@ class PDEFullMHD(object):
                  
             k = k+1
 
-
-
         Faraday = (self.MRot).dot(E)+(Bp1-self.B)/self.dt
+
         MagnN  = 2*intN+2*intNM
         # Faraday
         for k in range(len(self.Mesh.EdgeNodes)):
@@ -733,13 +782,14 @@ class PDEFullMHD(object):
         MV = self.LocalMassMatrix(NV,RV,n,A)
         return ME,MV
 
-    def BDivSquared(self):
+    def BDivSquared(self,B):
         #This function computes the divergence of B.
         D      = 0
         DivMat = self.BDiv()
-        divB   = DivMat.dot(self.B)
+        divB   = DivMat.dot(B)
         for k in range(len(divB)):
-            D = D + k 
+            A,V,E = self.Mesh.Area(self.Mesh.ElementEdges[k],self.Mesh.Orientations[k])
+            D     = D + A*divB[k]**2 
         return D
     
     def BDiv(self):
@@ -879,6 +929,7 @@ class PDEFullMHD(object):
             PiRTBmy[i] = coeffs[1]+coeffs[2]*0.5*(y1+y2)
             Em[i]      = 0.5*(El[n1]+El[n2])
         return PiRTBnx,PiRTBny,PiRTBmx,PiRTBmy,Em
+
     ######################################################################################
     #Fluid Flow
     

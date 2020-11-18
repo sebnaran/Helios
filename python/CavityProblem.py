@@ -27,7 +27,7 @@ def SaveInmFile(name,aname,array):
         
         file.writelines('];')
 Re,Rm,theta   = 1, 1, 0.5
-T             = 0.05
+T             = (0.0345033**2)*0.00000005*100
 #MTypes = ['Trig','Quad','Vor']
 #MTypes = ['OnlyOne']
 MTypes = ['Small']
@@ -53,7 +53,7 @@ def ub(xv,t):
         v = 1
     else:
         v = 0
-    return np.array([0,v])
+    return np.array([v,0])
 
 def Eb(xv,t):
     return 0
@@ -90,7 +90,7 @@ for MType in MTypes:
 
         Nodes,EdgeNodes,ElementEdges,BoundaryNodes,Orientations = ProcessedMesh(Pfile)
         Mesh = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
-        dt = 0.05*dx[i]**2
+        dt = 0.00000005*dx[i]**2
         PDE    = PDEFullMHD(Mesh,Re,Rm,Inu,InB,dt,theta)
         PDE.SetMHDBCandSource(ub,Eb,f,h)
         Solver = InexactNewtonTimeInt()
@@ -98,6 +98,9 @@ for MType in MTypes:
         for t in time:
             PDE.MHDComputeBC(t)
             PDE.MHDComputeSources(t)
+            print('unx='+str(PDE.unx))
+            print('uny='+str(PDE.uny))
+
             tempx = Solver.Newtoniter(PDE.MHDG,PDE.MHDConcatenate(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p),PDE.SetNumMHDDof(),1E-4,5000,PDE)
             PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p = PDE.MHDUpdateInt(tempx,PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p)
             PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.E             = PDE.MHDUpdateBC(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.E)
