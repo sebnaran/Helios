@@ -107,10 +107,8 @@ for MType in MTypes:
                 divu, A = PDE.DIVu(j,lunx,luny,lumx,lumy)
                 Masserr = Masserr+PDE.PhInProd(i,divu*A,divu*A)
             Masserr = math.sqrt(Masserr)
-            print('DIVu='+str(Masserr))
-            #print('Divu='+str(Masserr))
             divB = PDE.BDivSquared(PDE.B)
-            #print('DivB='+str(divB))
+
             divus.append(Masserr)
             divBs.append(divB)
             
@@ -120,14 +118,7 @@ for MType in MTypes:
             unx,uny,umx,umy,E = PDE.MHDUpdateBC(unx,uny,umx,umy,E)
             start = tim.time()
             tempx = Solver.Newtoniter(PDE.MHDG,PDE.MHDConcatenate(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p),PDE.SetNumMHDDof(),1E-3,5000000,PDE,unx,uny,umx,umy,B,E,p)
-            print('len='+str(len(tempx)) )
-            u = 0
-            for x in tempx:
-                print(x)
-                u=u+1
-                print(u)
-            end = tim.time()
-            print('time='+str(end-start))
+            #print('time='+str(end-start))
             PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p = PDE.MHDUpdateInt(tempx,PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p)
             PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.E             = PDE.MHDUpdateBC(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.E)
             divB = PDE.BDivSquared(PDE.B)

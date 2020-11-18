@@ -90,7 +90,7 @@ class InexactNewtonTimeInt(object):
         nGxm = n2(G(xm))
         i = 0
         while nGxm>tol and i<maxiter:
-            #print('err before gmres='+str(nGxm))  
+            print('err before gmres='+str(nGxm))  
             def fDGxm(delx):
                 return (G(xm+self.eps*delx)-Gxm)/(self.eps)
             DGxm  = LinearOperator((ndof,ndof), matvec = fDGxm)
@@ -157,6 +157,6 @@ class InexactNewtonTimeInt(object):
         if i == maxiter:
             print('Surpassed max number of iter without arriving at sol')
         else:
-            print('Successfully arrived at estimate')
+            print('Successfully completed Newton iterations')
         return xm  
             
