@@ -117,7 +117,7 @@ for MType in MTypes:
             unx,uny,umx,umy,B,E,p = PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p
             unx,uny,umx,umy,E = PDE.MHDUpdateBC(unx,uny,umx,umy,E)
             start = tim.time()
-            tempx = Solver.Newtoniter(PDE.MHDG,PDE.MHDConcatenate(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p),PDE.SetNumMHDDof(),1E-3,5000000,PDE,unx,uny,umx,umy,B,E,p)
+            tempx = Solver.Newtoniter(PDE.MHDG,PDE.MHDConcatenate(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p),PDE.SetNumMHDDof(),1E-6,5000000,PDE,unx,uny,umx,umy,B,E,p)
             #print('time='+str(end-start))
             PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p = PDE.MHDUpdateInt(tempx,PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p)
             PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.E             = PDE.MHDUpdateBC(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.E)
@@ -126,9 +126,9 @@ for MType in MTypes:
             #print('finished Newton Iterations')
             #print('Current L2 Norm on DivB='+str(divB))
             
-        SaveInmFile('ftime','time',time)
-        SaveInmFile('fDivu','Divu',divus)
-        SaveInmFile('fDivB','DivB',divBs)
+        #SaveInmFile('ftime','time',time)
+        #SaveInmFile('fDivu','Divu',divus)
+        #SaveInmFile('fDivB','DivB',divBs)
         def exu(xv):
             return exactu(xv,T)
 

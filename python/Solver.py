@@ -99,20 +99,20 @@ class InexactNewtonTimeInt(object):
             etam  = min([self.etamax,max([etamB,self.gamma*(epst/nGxm)])])
                 
                 
-            delxm, exitcode = gmres(DGxm,-Gxm,tol=etam*nGxm)
+            delxm, exitcode = gmres(DGxm,-Gxm,tol=self.eps)#tol=etam*nGxm)
             xm              = xm + delxm
             Gxm             = G(xm)
                 
             etamm1 = etam
             nGxmm1 = nGxm
-            nGxm = n2(G(xm))
+            nGxm = n2(Gxm)
             print('err after gmres='+str(nGxm))
             if exitcode>1E-5:
                 print('GMRES finished without reaching tolerance')
                 print('Num of GMRES iterations='+str(exitcode))
                 
             if nGxm<tol:
-                y = G(xm)
+                y = Gxm
                 fnx,fny,fmx,fmy,farf,elecf,divf = PDE.MHDSplity(y)
         
                 momerr  = PDE.TVhL2Norm(fnx,fny,fmx,fmy)
