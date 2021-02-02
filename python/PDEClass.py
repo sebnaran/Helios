@@ -1,4 +1,5 @@
 from MeshHelios import HeliosMesh
+import multiprocessing as mp
 from scipy.sparse import csr_matrix
 from scipy.sparse import lil_matrix
 import math
@@ -57,6 +58,7 @@ class PDEFullMHD(object):
             self.DTVList.append(TempD)
             self.KTVList.append(TempK)
             self.RTKIList.append(TempRTKI)
+        
     ##################################################################################
     ##################################################################################    
     #Compute DOFs from func
@@ -119,6 +121,239 @@ class PDEFullMHD(object):
             proj[i] = proj[i] +(self.w0*Fy0+self.w1*Fy1+self.w2*Fy2+self.w3*Fy3+self.w4*Fy4+self.w5*Fy5+self.w6*Fy6)*etimesnormal[1]
             proj[i] = proj[i]/(2*lengthe)   
         return proj
+
+    ##################################################################################
+    ##################################################################################    
+    #These functions work as an interface with the solver class. These are for Stokes flow
+    # def StokesConcatenate(self,unx,uny,umx,umy,p):
+    #     #This function returns an array that concatenates all the unknowns
+    #     intunx = [unx[i] for i in self.Mesh.NumInternalNodes]
+    #     intuny = [uny[i] for i in self.Mesh.NumInternalNodes]
+    #     intumx = [umx[i] for i in self.Mesh.NumInternalMidNodes]
+    #     intumy = [umy[i] for i in self.Mesh.NumInternalMidNodes]
+
+    #     return np.concatenate((intunx,intuny,intumx,intumy,p[0:len(p)-1]), axis=None)
+    
+    # def StokesSetNumMHDDof(self):
+    #     a = len(self.Mesh.NumInternalNodes)
+    #     b = len(self.Mesh.NumInternalMidNodes)
+    #     d = len(self.Mesh.ElementEdges)
+    #     return 2*a + 2*b + d - 1
+    
+    # # def MHDSplitdelx(self,delx):
+    # #     intn  = len(self.Mesh.NumInternalNodes)
+    # #     intmn = len(self.Mesh.NumInternalMidNodes)
+    # #     intE  = len(self.Mesh.EdgeNodes)
+    # #     intC  = len(self.Mesh.ElementEdges)
+
+    # #     cut1 = intn
+    # #     cut2 = cut1+intn
+    # #     cut3 = cut2+intmn
+    # #     cut4 = cut3+intmn
+    # #     cut5 = cut4+intE
+    # #     cut6 = cut5+intC
+
+    # #     Cutdelx = np.split(delx,[cut1,cut2,cut3,cut4,cut5,cut6])
+    # #     delunx  = np.zeros(intn, dtype = float)
+    # #     deluny  = np.zeros(intn, dtype = float)
+    # #     delE    = np.zeros(intn, dtype = float)
+    # #     delumx  = np.zeros(intmn,dtype = float)
+    # #     delumy  = np.zeros(intmn,dtype = float)
+    # #     delB    = np.zeros(intE, dtype = float)
+    # #     delp    = np.zeros(intC, dtype = float)
+
+    # def StokesUpdateInt(self,x,unx,uny,umx,umy,B,E,p):
+    #     cut1 = len(self.Mesh.NumInternalNodes) #Number of internal dofs for ux
+    #     cut2 = 2*cut1                          #Number of internal dofs for uy
+    #     cut3 = cut2+len(self.Mesh.NumInternalMidNodes)                #Number of internal dofs for umx
+    #     cut4 = cut3+len(self.Mesh.NumInternalMidNodes)                #Number of internal dofs for umy
+    #     Cutx = np.split(x,[cut1,cut2,cut3,cut4])
+    #     runx = unx*0
+    #     runy = uny*0
+    #     rumx = umx*0
+    #     rumy = umy*0
+    #     rp   = p*0
+        
+    #     for i in self.Mesh.NumBoundaryNodes:
+    #         runx[i] = unx[i]
+    #         runy[i] = uny[i]
+    #     for i in self.Mesh.NumBMidNodes:
+    #         rumx[i] = umx[i]
+    #         rumy[i] = umy[i]
+    #     j = 0
+    #     for i in self.Mesh.NumInternalNodes:
+    #         runx[i] = Cutx[0][j]
+    #         runy[i] = Cutx[1][j]
+    #         j = j+1
+    #     j = 0
+    #     for i in self.Mesh.NumInternalMidNodes:
+    #         rumx[i] = Cutx[2][j]
+    #         rumy[i] = Cutx[3][j]
+    #         j = j+1
+    #     rB = Cutx[4]
+    #     rp[0:len(rp)-1]   = Cutx[4]
+    #     rp[len(rp)-1]     = -np.sum(p[0:len(p)-1])
+    #     return runx,runy,rumx,rumy,rp
+
+    # def StokesUpdateBC(self,unx,uny,umx,umy,E):
+    #     runx = unx*0
+    #     runy = uny*0
+    #     rumx = umx*0
+    #     rumy = umy*0
+        
+    #     for i in self.Mesh.NumInternalNodes:
+    #         runx[i] = unx[i]
+    #         runy[i] = uny[i]
+
+    #     for i in self.Mesh.NumInternalMidNodes:
+    #         rumx[i] = umx[i]
+    #         rumy[i] = umy[i]
+
+    #     j = 0
+    #     for i in self.Mesh.NumBoundaryNodes:
+    #         runx[i] = self.ubnx[j]
+    #         runy[i] = self.ubny[j]
+    #         j      = j+1
+    #     j = 0
+    #     for i in self.Mesh.NumBMidNodes:
+    #         rumx[i] = self.ubmx[j]
+    #         rumy[i] = self.ubmy[j]
+    #         j      = j+1
+    #     return runx,runy,rumx,rumy
+
+    # def SetStokesBCandSource(self,ub,f):
+    #     self.ub,self.f = ub,f
+
+    # def StokesComputeBC(self,t):
+    #     def dummyub(xv):
+    #         return self.ub(xv,t+self.dt)
+    #     tempubn              = self.NodalDOFs(dummyub,self.Mesh.BNodes)
+    #     self.ubnx, self.ubny = self.DecompIntoCoord(tempubn)
+    #     tempum               = self.NodalDOFs(dummyub,self.Mesh.BMidNodes)
+    #     self.ubmx, self.ubmy = self.DecompIntoCoord(tempum)
+
+    
+    # def StokesComputeSources(self,t):
+    #     def dummyf(xv):
+    #         return self.f(xv,t+self.theta*self.dt)
+        
+    #     tempfn             = self.NodalDOFs(dummyf,self.Mesh.Nodes)
+    #     self.fnx, self.fny = self.DecompIntoCoord(tempfn)
+    #     tempfm             = self.NodalDOFs(dummyf,self.Mesh.MidNodes)
+    #     self.fmx, self.fmy = self.DecompIntoCoord(tempfm)
+
+    # def StokesG(self,x):
+    #     #The x is passed because the Scipy Linear Function class requires it.
+    #     #It will use the current values of the internal variables
+    #     #self.evalcount = self.evalcount+1
+    #     unp1x,unp1y = np.zeros((len(self.Mesh.Nodes)),dtype =float),np.zeros((len(self.Mesh.Nodes)),dtype =float)
+    #     ump1x,ump1y = np.zeros((len(self.Mesh.MidNodes)),dtype =float),np.zeros((len(self.Mesh.MidNodes)),dtype =float)
+
+    #     p           = np.zeros((len(self.Mesh.ElementEdges)),dtype =float)
+    #     unp1x,unp1y,ump1x,ump1y,p = self.StokesUpdateInt(x,unp1x,unp1y,ump1x,ump1y,p)
+    #     unp1x,unp1y,ump1x,ump1y = self.StokesUpdateBC(unp1x,unp1y,ump1x,ump1y)
+
+    #     y       = np.zeros(len(x))
+    #     nx      = (unp1x-self.unx)/self.dt - self.fnx
+    #     ny      = (unp1y-self.uny)/self.dt - self.fny
+    #     mx      = (ump1x-self.umx)/self.dt - self.fmx
+    #     my      = (ump1y-self.umy)/self.dt - self.fmy
+    #     unthetax = (1-self.theta)*self.unx+self.theta*unp1x 
+    #     unthetay = (1-self.theta)*self.uny+self.theta*unp1y
+    #     umthetax = (1-self.theta)*self.umx+self.theta*ump1x 
+    #     umthetay = (1-self.theta)*self.umy+self.theta*ump1y
+        
+    #     intN,intNM,k = len(self.Mesh.NumInternalNodes),len(self.Mesh.NumInternalMidNodes),0 
+    #     for i in self.Mesh.NumInternalNodes:
+    #         Cells = self.Mesh.NodestoCells[i]
+    #         v1nx,v1ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+    #         v1mx,v1my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+    #         v1nx[i]   = 1
+            
+    #         v2nx,v2ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+    #         v2mx,v2my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+    #         v2ny[i]   = 1
+    #         #Momentum, nodal DOFs
+    #         for Cell in Cells:
+    #             lnx,lny,lmx,lmy         = self.GetLocalTVhDOF(Cell,nx,ny,mx,my)
+    #             lv1nx,lv1ny,lv1mx,lv1my = self.GetLocalTVhDOF(Cell,v1nx,v1ny,v1mx,v1my)
+    #             lv2nx,lv2ny,lv2mx,lv2my = self.GetLocalTVhDOF(Cell,v2nx,v2ny,v2mx,v2my)
+    #             divv1,A                 = self.DIVu(Cell,lv1nx,lv1ny,lv1mx,lv1my)
+    #             divv2,A                 = self.DIVu(Cell,lv2nx,lv2ny,lv2mx,lv2my)
+    #             #UseWithOldDisc
+    #             #v1xB                     = self.Cross2Dto1D(lv1nx,lv1ny,RTBthetanx,RTBthetany)
+    #             #v2xB                     = self.Cross2Dto1D(lv2nx,lv2ny,RTBthetanx,RTBthetany)
+
+    #             y[k] = y[k]\
+    #                 +self.TVhInProd(Cell,lnx,lny,lmx,lmy,lv1nx,lv1ny,lv1mx,lv1my)\
+    #                 +(1/self.Re)*self.TVhSemiInProd(Cell,locunthetax,locunthetay,locumthetax,locumthetay,lv1nx,lv1ny,lv1mx,lv1my)\
+    #                 -self.PhInProd(Cell,p[Cell],divv1*A)
+    #                 #+Jn.dot(self.MVList[Cell].dot(v1xB))
+    #                 #UseWithNewDisc
+                    
+    #             y[k+intN]  = y[k+intN]\
+    #                 +self.TVhInProd(Cell,lnx,lny,lmx,lmy,lv2nx,lv2ny,lv2mx,lv2my)\
+    #                 +(1/self.Re)*self.TVhSemiInProd(Cell,locunthetax,locunthetay, locumthetax,locumthetay,lv2nx,lv2ny,lv2mx,lv2my)\
+    #                 -self.PhInProd(Cell,p[Cell],divv2*A)
+    #                 #UseWitholdDisc
+    #                 #+Jn.dot( self.MVList[Cell].dot(v2xB) )
+    #                 #UseWithNewDisc
+                    
+                    
+               
+    #         k = k+1
+    #     #Momentum Midnodes
+    #     k = 0
+    #     for i in self.Mesh.NumInternalMidNodes:
+    #         Cells = self.Mesh.EdgestoCells[i]
+    #         v1nx,v1ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+    #         v1mx,v1my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+    #         v1mx[i]   = 1
+            
+    #         v2nx,v2ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+    #         v2mx,v2my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+    #         v2my[i]   = 1
+    #         for Cell in Cells:
+    #             lv1nx,lv1ny,lv1mx,lv1my = self.GetLocalTVhDOF(Cell,v1nx,v1ny,v1mx,v1my)
+    #             lv2nx,lv2ny,lv2mx,lv2my = self.GetLocalTVhDOF(Cell,v2nx,v2ny,v2mx,v2my)
+    #             lnx,lny,lmx,lmy         = self.GetLocalTVhDOF(Cell,nx,ny,mx,my)
+    #             locunthetax,locunthetay, locumthetax,locumthetay = self.GetLocalTVhDOF(Cell,unthetax,unthetay,umthetax,umthetay)
+    #             divv1,A       = self.DIVu(Cell,lv1nx,lv1ny,lv1mx,lv1my)
+    #             locEn = self.GetLocalVhDOF(Cell,E)
+
+    #             y[k+2*intN] = y[k+2*intN]\
+    #                 +self.TVhInProd(Cell,lnx,lny,lmx,lmy,lv1nx,lv1ny,lv1mx,lv1my)\
+    #                +(1/self.Re)*self.TVhSemiInProd(Cell,locunthetax,locunthetay, locumthetax,locumthetay,lv1nx,lv1ny,lv1mx,lv1my)\
+    #                 -self.PhInProd(Cell,p[Cell],divv1*A)
+                    
+
+    #             divv2,A             = self.DIVu(Cell,lv2nx,lv2ny,lv2mx,lv2my)
+    #             y[k+2*intN+intNM] = y[k+2*intN+intNM]\
+    #                             +self.TVhInProd(Cell,lnx,lny,lmx,lmy,lv2nx,lv2ny,lv2mx,lv2my)\
+    #                             +(1/self.Re)*self.TVhSemiInProd(Cell,locunthetax,locunthetay, locumthetax,locumthetay,lv2nx,lv2ny,lv2mx,lv2my)\
+    #                             -self.PhInProd(Cell,p[Cell],divv2*A)
+                 
+    #         k = k+1
+
+    #     k    = 0
+    #     Nump = 2*intN+2*intNM
+    #     for i in range(NumE-1):
+    #         lunxi ,lunyi ,lumxi ,lumyi = self.GetLocalTVhDOF(i,unthetax,unthetay,umthetax,umthetay)
+    #         lunxl ,lunyl ,lumxl ,lumyl = self.GetLocalTVhDOF(NumE-1,unthetax,unthetay,umthetax,umthetay)
+    #         Divui,Ai                   = self.DIVu(i,lunxi,lunyi,lumxi,lumyi)
+            
+    #         Divul,Al                   = self.DIVu(NumE-1,lunxl,lunyl,lumxl,lumyl)
+    #         y[k+Nump]     = y[k+Nump]+self.PhInProd(i,Divui*Ai,1)-self.PhInProd(NumE-1,Divul*Al,1)
+    #         k = k+1
+    #     return y
+    
+    # def MHDSplity(self,y):
+    #     fnx,fny = np.zeros((len(self.Mesh.Nodes)),dtype=float),np.zeros((len(self.Mesh.Nodes)),dtype=float)
+    #     fmx,fmy = np.zeros((len(self.Mesh.MidNodes)),dtype=float),np.zeros((len(self.Mesh.MidNodes)),dtype=float)
+    #     divf    = np.zeros((len(self.Mesh.ElementEdges)),dtype=float)
+    #     farf    = np.zeros((len(self.Mesh.EdgeNodes)),dtype=float)
+    #     h       = np.zeros((len(self.Mesh.Nodes)),dtype=float)
+    #     return self.MHDUpdateInt(y,fnx,fny,fmx,fmy,farf,h,divf)
 
     ##################################################################################
     ##################################################################################    
@@ -255,6 +490,89 @@ class PDEFullMHD(object):
         tempfm             = self.NodalDOFs(dummyf,self.Mesh.MidNodes)
         self.fmx, self.fmy = self.DecompIntoCoord(tempfm)
         self.hdof          = self.NodalDOFs(dummyh,self.Mesh.Nodes)
+
+    def MomentumyNode(self,node,unx,uny,umx,umy,B,E,p):
+        Cells = self.Mesh.NodestoCells[i]
+        v1nx,v1ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+        v1mx,v1my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+        v1nx[i]   = 1
+            
+        v2nx,v2ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+        v2mx,v2my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+        v2ny[i]   = 1
+        #Momentum, nodal DOFs
+        for Cell in Cells:
+            locBtheta           = self.GetLocalEhDOF(Cell,Bntheta)
+            #UseForOldDisc
+            #RTBthetanx,RTBthetany = self.PiRTBn(locBtheta,Cell)
+
+            locunthetax,locunthetay, locumthetax,locumthetay = self.GetLocalTVhDOF(Cell,unthetax,unthetay,umthetax,umthetay)
+            #UseForNewDisc
+            RTBthetanx,RTBthetany,RTBthetamx,RTBthetamy,locEm = self.PiRTBnm(locBtheta,E,Cell)
+                
+            locEn = self.GetLocalVhDOF(Cell,E) 
+            Jn    = locEn+self.Cross2Dto1D(locunthetax,locunthetay,RTBthetanx,RTBthetany)
+            #UseWithNewDisc
+            Jm    = locEm+self.Cross2Dto1D(locumthetax,locumthetay,RTBthetamx,RTBthetamy)
+
+            #UseWithNewDisc
+            JxBnx,JxBny = self.Cross1Dto2D(Jn,RTBthetanx,RTBthetany)
+            JxBmx,JxBmy = self.Cross1Dto2D(Jm,RTBthetamx,RTBthetamy)
+                
+            lnx,lny,lmx,lmy         = self.GetLocalTVhDOF(Cell,nx,ny,mx,my)
+            lv1nx,lv1ny,lv1mx,lv1my = self.GetLocalTVhDOF(Cell,v1nx,v1ny,v1mx,v1my)
+            lv2nx,lv2ny,lv2mx,lv2my = self.GetLocalTVhDOF(Cell,v2nx,v2ny,v2mx,v2my)
+            divv1,A                 = self.DIVu(Cell,lv1nx,lv1ny,lv1mx,lv1my)
+            divv2,A                 = self.DIVu(Cell,lv2nx,lv2ny,lv2mx,lv2my)
+            #UseWithOldDisc
+            #v1xB                     = self.Cross2Dto1D(lv1nx,lv1ny,RTBthetanx,RTBthetany)
+            #v2xB                     = self.Cross2Dto1D(lv2nx,lv2ny,RTBthetanx,RTBthetany)
+
+            y[k] = y[k]\
+                +self.TVhInProd(Cell,lnx,lny,lmx,lmy,lv1nx,lv1ny,lv1mx,lv1my)\
+                +(1/self.Re)*self.TVhSemiInProd(Cell,locunthetax,locunthetay,locumthetax,locumthetay,lv1nx,lv1ny,lv1mx,lv1my)\
+                -self.PhInProd(Cell,p[Cell],divv1*A)\
+                -self.TVhInProd(Cell,JxBnx,JxBny,JxBmx,JxBmy,lv1nx,lv1ny,lv1mx,lv1my)
+                #UseWitholdDisc
+                #+Jn.dot(self.MVList[Cell].dot(v1xB))
+                #UseWithNewDisc
+                    
+            y[k+intN]  = y[k+intN]\
+                +self.TVhInProd(Cell,lnx,lny,lmx,lmy,lv2nx,lv2ny,lv2mx,lv2my)\
+                +(1/self.Re)*self.TVhSemiInProd(Cell,locunthetax,locunthetay, locumthetax,locumthetay,lv2nx,lv2ny,lv2mx,lv2my)\
+                -self.PhInProd(Cell,p[Cell],divv2*A)\
+                -self.TVhInProd(Cell,JxBnx,JxBny,JxBmx,JxBmy,lv2nx,lv2ny,lv2mx,lv2my)
+                #UseWitholdDisc
+                #+Jn.dot( self.MVList[Cell].dot(v2xB) )
+                #UseWithNewDisc
+    
+    def pMHDG(self,x,Gunx):
+        self.evalcount = self.evalcount+1
+        unp1x,unp1y = np.zeros((len(self.Mesh.Nodes)),dtype =float),np.zeros((len(self.Mesh.Nodes)),dtype =float)
+        ump1x,ump1y = np.zeros((len(self.Mesh.MidNodes)),dtype =float),np.zeros((len(self.Mesh.MidNodes)),dtype =float)
+        Bp1         = np.zeros((len(self.Mesh.EdgeNodes)),dtype =float)
+        E           = np.zeros((len(self.Mesh.Nodes)),dtype =float)
+        p           = np.zeros((len(self.Mesh.ElementEdges)),dtype =float)
+        unp1x,unp1y,ump1x,ump1y,Bp1,E,p = self.MHDUpdateInt(x,unp1x,unp1y,ump1x,ump1y,Bp1,E,p)
+        unp1x,unp1y,ump1x,ump1y,E       = self.MHDUpdateBC(unp1x,unp1y,ump1x,ump1y,E)
+
+        y       = np.zeros(len(x))
+        nx      = (unp1x-self.unx)/self.dt - self.fnx
+        ny      = (unp1y-self.uny)/self.dt - self.fny
+        mx      = (ump1x-self.umx)/self.dt - self.fmx
+        my      = (ump1y-self.umy)/self.dt - self.fmy
+        unthetax = (1-self.theta)*self.unx+self.theta*unp1x 
+        unthetay = (1-self.theta)*self.uny+self.theta*unp1y
+        umthetax = (1-self.theta)*self.umx+self.theta*ump1x 
+        umthetay = (1-self.theta)*self.umy+self.theta*ump1y
+        Bntheta  = (1-self.theta)*self.B+self.theta*Bp1
+        
+        input_lst    = self.Mesh.NumInternalNodes
+
+        def fGunx(Node):
+            return Gunx(Node,nx,ny,mx,my,unthetax,unthetay,umthetax,umthetay,Bntheta,E,p) 
+        y1 = self.pool.map(fGunx,input_lst)
+        return y1
 
     def MHDG(self,x):
         #The x is passed because the Scipy Linear Function class requires it.

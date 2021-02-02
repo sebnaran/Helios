@@ -1,4 +1,5 @@
 from PDEClass import PDEFullMHD
+from Functions import *
 from MeshHelios import HeliosMesh
 import pickle
 import numpy as np
@@ -531,26 +532,169 @@ def test_PiRTB():
     Bx,By,n1,n2,n3  = TestPDE.PiRTBnm(locB,TestPDE.unx,0)
     assert (np.all(Bx==np.array([1,1,1,1])))
 
-def test_J():
+# def test_J():
+#     theta,dt,T = 0.5,0.5,1
+#     Re,Rm      = 1,1
+#     #MTypes  = ['Onlyone']
+#     #MTypes = ['Quad']
+#     MTypes = ['Vor']
+#     #MTypes = ['Trig','Quad','Vor']
+#     def exactu(xv,t):
+#         return np.array([math.exp(t)*math.cos(xv[1]),0])
+#     def exactB(xv,t):
+#         return np.array([0,math.cos(xv[0]+t)])
+#     def exactE(xv,t):
+#         return math.cos(xv[0]+t)
+    
+#     def initu(xv):
+#         return exactu(xv,0)
+#     def initB(xv):
+#         return exactB(xv,0)
+#     def initE(xv):
+#         return exactE(xv,0)
+
+    
+#     for MType in MTypes:
+#         if MType == 'Onlyone':
+#             ProcessedFiles = ['PTh=0.101015.txt']
+#             dx = [0.10101525445522107]
+#         #ProcessedFiles = ['PertPQh=0.021739.txt']
+#         #ProcessedFiles = ['AMRMesh']
+#         #dx = [0.021739]
+#         if MType == 'Trig':
+#             ProcessedFiles = ['PTh=0.101015.txt','PTh=0.051886.txt','PTh=0.0251418.txt','PTh=0.0125255.txt',\
+#                           'PTh=0.0062613.txt']
+
+#             dx = [0.10101525445522107, 0.05018856132284956, 0.025141822757713456, 0.012525468249897755,\
+#          0.006261260829309998]
+
+#         if MType == 'Quad':
+#             ProcessedFiles = ['PertPQh=0.166666.txt','PertPQh=0.0833333.txt','PertPQh=0.043478.txt',\
+#                       'PertPQh=0.021739.txt','PertPQh=0.010989.txt']
+
+#             dx = [0.16666666666666666, 0.08333333333333333, 0.043478260869565216, 0.021739130434782608,\
+#          0.010989010989010988]
+#         if MType == 'Vor':
+#             ProcessedFiles = ['PVh=0.128037.txt','PVh=0.0677285.txt','PVh=0.0345033.txt','PVh=0.0174767.txt',\
+#                       'PVh=0.0087872.txt']
+
+#             dx = [0.12803687993289598, 0.06772854614785964, 0.03450327796711771, 0.017476749542968805,\
+#         0.008787156237382746]
+#         y = 0
+#         for Pfile in ProcessedFiles:
+#             Nodes,EdgeNodes,ElementEdges,BoundaryNodes,Orientations = ProcessedMesh(Pfile)
+#             #Nodes,EdgeNodes,ElementEdges,BoundaryNodes,Orientations,BottomToTop,LeftToRight,Corners = RetrieveAMRMesh("AMRmesh.txt")
+#             Mesh = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
+#             dt = dx[y]**2
+#             y  = y+1
+#             print(Pfile)
+#             def ut(xv):
+#                 return exactu(xv,dt)
+#             def Bt(xv):
+#                 return exactB(xv,dt)
+#             def Et(xv):
+#                 return exactE(xv,theta*dt)
+
+#             def f(xv,t):
+#                 y1 = math.cos(t+xv[0])**2-math.cos(xv[1])+2*math.exp(t)*math.cos(xv[1])\
+#                 +math.exp(t)*math.cos(xv[1])*math.cos(t+xv[0])**2
+#                 #y1 = -math.cos(xv[1])+2*math.exp(t)*math.cos(xv[1])
+#                 y2 = xv[0]*math.sin(xv[1])
+#                 return np.array([y1,y2])
+#             def h(xv,t):
+#                 return math.cos(t+xv[0])*(1+math.exp(t)*math.cos(xv[1]))+math.sin(t+xv[0])
+    
+#             def J(xv):
+#                 t = dt*theta
+#                 return math.cos(t+xv[0])+math.exp(t)*math.cos(t+xv[0])*math.cos(xv[1])
+
+#             def JxB(xv):
+#                 t = dt*theta
+#                 u = -(math.cos(t+xv[0])**2)*(1+math.exp(t)*math.cos(xv[1]))
+#                 return np.array([u,0])
+#             PDE    = PDEFullMHD(Mesh,Re,Rm,initu,initB,dt,theta)
+#             PDE.SetMHDBCandSource(exactu,exactE,f,h)
+#             PDE.MHDComputeBC(0)
+#             PDE.MHDComputeSources(0)
+
+#             tempxun  = PDE.NodalDOFs(ut,Mesh.Nodes)
+#             unx,uny  = PDE.DecompIntoCoord(tempxun)
+#             tempxum  = PDE.NodalDOFs(ut,Mesh.MidNodes)
+#             umx,umy  = PDE.DecompIntoCoord(tempxum)
+#             B        = PDE.MagDOFs(Bt)
+#             E        = PDE.NodalDOFs(Et,Mesh.Nodes)
+#             eJn      = PDE.NodalDOFs(J,Mesh.Nodes)
+#             eJm      = PDE.NodalDOFs(J,Mesh.MidNodes)
+            
+#             tempJxBn    = PDE.NodalDOFs(JxB,Mesh.Nodes)
+#             eJxBnx,eJxBny = PDE.DecompIntoCoord(tempJxBn)
+#             tempJxBm    = PDE.NodalDOFs(JxB,Mesh.MidNodes)
+#             eJxBmx,eJxBmy = PDE.DecompIntoCoord(tempJxBm)
+
+#             Bth   = (1-theta)*PDE.B+theta*B
+#             unxth = (1-theta)*PDE.unx+theta*unx
+#             unyth = (1-theta)*PDE.uny+theta*uny
+#             umxth = (1-theta)*PDE.umx+theta*umx
+#             umyth = (1-theta)*PDE.umy+theta*umy
+#             JNorm = 0
+#             JxBNorm = 0
+#             for i in range(len(Mesh.ElementEdges)):
+#                 locBth                              = PDE.GetLocalEhDOF(i,Bth)
+#                 RTBthetax,RTBthetay = PDE.PiRTBn(locBth,i)
+#                 locEn                               = PDE.GetLocalVhDOF(i,E) 
+#                 loceJn                              = PDE.GetLocalVhDOF(i,eJn)
+#                 locunthx,locunthy,locumthx,locumthy = PDE.GetLocalTVhDOF(i,unxth,unyth,umxth,umyth)
+#                 elocJxBnx,elocJxBny,elocJxBmx,elocJxBmy = PDE.GetLocalTVhDOF(i,eJxBnx,eJxBny,eJxBmx,eJxBmy)
+#                 RTBthetanx,RTBthetany,RTBthetamx,RTBthetamy,locEm = PDE.PiRTBnm(locBth,E,i)
+                
+#                 Jn    = locEn+PDE.Cross2Dto1D(locunthx,locunthy,RTBthetanx,RTBthetany)
+#                 Jm    = locEm+PDE.Cross2Dto1D(locumthx,locumthy,RTBthetamx,RTBthetamy)
+
+#                 JxBnx,JxBny = PDE.Cross1Dto2D(Jn,RTBthetanx,RTBthetany)
+#                 JxBmx,JxBmy = PDE.Cross1Dto2D(Jm,RTBthetamx,RTBthetamy)
+#                 cnx,cny = JxBnx-elocJxBnx, JxBny-elocJxBny
+#                 cmx,cmy = JxBmx-elocJxBmx, JxBmy-elocJxBmy
+#                 JNorm = JNorm + (Jn-loceJn).dot( PDE.MVList[i].dot(Jn-loceJn))
+#                 JxBNorm = JxBNorm + PDE.TVhInProd(i,cnx,cny,cmx,cmy,cnx,cny,cmx,cmy)
+#             JNorm   = math.sqrt(JNorm)
+#             #print('J='+str(JNorm))
+#             JxBNorm = math.sqrt(JxBNorm)
+#             print('JxB='+str(JxBNorm))
+#             assert (1==1)
+def test_parallelG():
     theta,dt,T = 0.5,0.5,1
     Re,Rm      = 1,1
     #MTypes  = ['Onlyone']
     #MTypes = ['Quad']
-    MTypes = ['Vor']
-    #MTypes = ['Trig','Quad','Vor']
+    #MTypes = ['Vor']
+    MTypes = ['Trig','Quad','Vor']
     def exactu(xv,t):
         return np.array([math.exp(t)*math.cos(xv[1]),0])
-    def exactB(xv,t):
+
+    def exactB(xv,t):   
         return np.array([0,math.cos(xv[0]+t)])
     def exactE(xv,t):
         return math.cos(xv[0]+t)
-    
+    def exactp(xv,t):
+        return -xv[0]*math.cos(xv[1])
+    def f(xv,t):
+        y1 = math.cos(t+xv[0])**2-math.cos(xv[1])+2*math.exp(t)*math.cos(xv[1])\
+         +math.exp(t)*math.cos(xv[1])*math.cos(t+xv[0])**2
+        #y1 = -math.cos(xv[1])+2*math.exp(t)*math.cos(xv[1])
+        y2 = xv[0]*math.sin(xv[1])
+        return np.array([y1,y2])
+    def h(xv,t):
+            return math.cos(t+xv[0])*(1+math.exp(t)*math.cos(xv[1]))+math.sin(t+xv[0])
+
     def initu(xv):
         return exactu(xv,0)
     def initB(xv):
         return exactB(xv,0)
     def initE(xv):
         return exactE(xv,0)
+    def initp(xv):
+        return exactp(xv,0)
+
 
     
     for MType in MTypes:
@@ -579,84 +723,30 @@ def test_J():
 
             dx = [0.12803687993289598, 0.06772854614785964, 0.03450327796711771, 0.017476749542968805,\
         0.008787156237382746]
-        y = 0
+        i = 0
         for Pfile in ProcessedFiles:
             Nodes,EdgeNodes,ElementEdges,BoundaryNodes,Orientations = ProcessedMesh(Pfile)
             #Nodes,EdgeNodes,ElementEdges,BoundaryNodes,Orientations,BottomToTop,LeftToRight,Corners = RetrieveAMRMesh("AMRmesh.txt")
             Mesh = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
-            dt = dx[y]**2
-            y  = y+1
-            print(Pfile)
+            dt = dx[i]**2
+            i = i+1
+            PDE    = PDEFullMHD(Mesh,Re,Rm,initu,initB,dt,theta)
+            PDE.SetMHDBCandSource(exactu,exactE,f,h)
+            PDE.MHDComputeBC(0)
+            PDE.MHDComputeSources(0)
             def ut(xv):
                 return exactu(xv,dt)
             def Bt(xv):
                 return exactB(xv,dt)
             def Et(xv):
                 return exactE(xv,theta*dt)
-
-            def f(xv,t):
-                y1 = math.cos(t+xv[0])**2-math.cos(xv[1])+2*math.exp(t)*math.cos(xv[1])\
-                +math.exp(t)*math.cos(xv[1])*math.cos(t+xv[0])**2
-                #y1 = -math.cos(xv[1])+2*math.exp(t)*math.cos(xv[1])
-                y2 = xv[0]*math.sin(xv[1])
-                return np.array([y1,y2])
-            def h(xv,t):
-                return math.cos(t+xv[0])*(1+math.exp(t)*math.cos(xv[1]))+math.sin(t+xv[0])
-    
-            def J(xv):
-                t = dt*theta
-                return math.cos(t+xv[0])+math.exp(t)*math.cos(t+xv[0])*math.cos(xv[1])
-
-            def JxB(xv):
-                t = dt*theta
-                u = -(math.cos(t+xv[0])**2)*(1+math.exp(t)*math.cos(xv[1]))
-                return np.array([u,0])
-            PDE    = PDEFullMHD(Mesh,Re,Rm,initu,initB,dt,theta)
-            PDE.SetMHDBCandSource(exactu,exactE,f,h)
-            PDE.MHDComputeBC(0)
-            PDE.MHDComputeSources(0)
-
-            tempxun  = PDE.NodalDOFs(ut,Mesh.Nodes)
-            unx,uny  = PDE.DecompIntoCoord(tempxun)
-            tempxum  = PDE.NodalDOFs(ut,Mesh.MidNodes)
-            umx,umy  = PDE.DecompIntoCoord(tempxum)
-            B        = PDE.MagDOFs(Bt)
-            E        = PDE.NodalDOFs(Et,Mesh.Nodes)
-            eJn      = PDE.NodalDOFs(J,Mesh.Nodes)
-            eJm      = PDE.NodalDOFs(J,Mesh.MidNodes)
-            
-            tempJxBn    = PDE.NodalDOFs(JxB,Mesh.Nodes)
-            eJxBnx,eJxBny = PDE.DecompIntoCoord(tempJxBn)
-            tempJxBm    = PDE.NodalDOFs(JxB,Mesh.MidNodes)
-            eJxBmx,eJxBmy = PDE.DecompIntoCoord(tempJxBm)
-
-            Bth   = (1-theta)*PDE.B+theta*B
-            unxth = (1-theta)*PDE.unx+theta*unx
-            unyth = (1-theta)*PDE.uny+theta*uny
-            umxth = (1-theta)*PDE.umx+theta*umx
-            umyth = (1-theta)*PDE.umy+theta*umy
-            JNorm = 0
-            JxBNorm = 0
-            for i in range(len(Mesh.ElementEdges)):
-                locBth                              = PDE.GetLocalEhDOF(i,Bth)
-                RTBthetax,RTBthetay = PDE.PiRTBn(locBth,i)
-                locEn                               = PDE.GetLocalVhDOF(i,E) 
-                loceJn                              = PDE.GetLocalVhDOF(i,eJn)
-                locunthx,locunthy,locumthx,locumthy = PDE.GetLocalTVhDOF(i,unxth,unyth,umxth,umyth)
-                elocJxBnx,elocJxBny,elocJxBmx,elocJxBmy = PDE.GetLocalTVhDOF(i,eJxBnx,eJxBny,eJxBmx,eJxBmy)
-                RTBthetanx,RTBthetany,RTBthetamx,RTBthetamy,locEm = PDE.PiRTBnm(locBth,E,i)
-                
-                Jn    = locEn+PDE.Cross2Dto1D(locunthx,locunthy,RTBthetanx,RTBthetany)
-                Jm    = locEm+PDE.Cross2Dto1D(locumthx,locumthy,RTBthetamx,RTBthetamy)
-
-                JxBnx,JxBny = PDE.Cross1Dto2D(Jn,RTBthetanx,RTBthetany)
-                JxBmx,JxBmy = PDE.Cross1Dto2D(Jm,RTBthetamx,RTBthetamy)
-                cnx,cny = JxBnx-elocJxBnx, JxBny-elocJxBny
-                cmx,cmy = JxBmx-elocJxBmx, JxBmy-elocJxBmy
-                JNorm = JNorm + (Jn-loceJn).dot( PDE.MVList[i].dot(Jn-loceJn))
-                JxBNorm = JxBNorm + PDE.TVhInProd(i,cnx,cny,cmx,cmy,cnx,cny,cmx,cmy)
-            JNorm   = math.sqrt(JNorm)
-            #print('J='+str(JNorm))
-            JxBNorm = math.sqrt(JxBNorm)
-            print('JxB='+str(JxBNorm))
-            assert (1==1)
+            def pt(xv):
+                return exactp(xv,theta*dt)
+            tempxun   = PDE.NodalDOFs(ut,Mesh.Nodes)
+            xunx,xuny = PDE.DecompIntoCoord(tempxun)
+            tempxum   = PDE.NodalDOFs(ut,Mesh.MidNodes)
+            xumx,xumy = PDE.DecompIntoCoord(tempxum)
+            xB        = PDE.MagDOFs(Bt)
+            xE        = PDE.NodalDOFs(Et,Mesh.Nodes)
+            xp        = PDE.PhDOF(pt)
+            yp        = PDE.pMHDG(PDE.MHDConcatenate(xunx,xuny,xumx,xumy,xB,xE,xp),Gunx)

@@ -106,6 +106,7 @@ for MType in MTypes:
         xp        = PDE.PhDOF(pt)
         start = time.time()
         y         = PDE.MHDG(PDE.MHDConcatenate(xunx,xuny,xumx,xumy,xB,xE,xp))
+        #y         = PDE.pMHDG(PDE.MHDConcatenate(xunx,xuny,xumx,xumy,xB,xE,xp))
         end = time.time()
         print('time ='+str(end-start))
         fnx,fny,fmx,fmy,farf,elecf,divf = PDE.MHDSplity(y)
