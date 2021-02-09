@@ -8,6 +8,7 @@ from numpy.linalg import norm as n2
 import numpy as np
 import math
 import time
+from scipy.sparse.linalg import spsolve
 
 def outside_func(par):
     obj,G,Gxm,xm,ndof,i = par
@@ -21,7 +22,7 @@ class InexactNewtonTimeInt(object):
         self.alpha  = 1.5
         self.gamma  = 0.9
         self.epsr   = 1E-4
-        self.pool   = mp.Pool(12)
+        #self.pool   = mp.Pool(12)
     def J(self,cols):
         ndof = len(cols[0])
         J = np.zeros((ndof,ndof),dtype = float)
@@ -33,7 +34,45 @@ class InexactNewtonTimeInt(object):
         unitnormal = np.zeros(ndof,dtype=float)
         unitnormal[i] = 1
         return (G(xm+self.eps*unitnormal)-Gxm)/self.eps
-    
+
+    def FlowSolve(self,G,x0,ndof,maxiter,tol):
+        xm     = x0
+        delxm = 0.0 * xm
+        Gxm    = G(x0)
+        nGxm   = n2(Gxm)
+        
+        j = 0
+
+        while nGxm>tol and j<maxiter:
+            print('ngxm='+str(nGxm))
+            Cols   = []
+            for i in range(ndof):
+               col = self.ithCol(G,Gxm,xm,ndof,i)
+               #print(f'norm of{i}-th Node={n2(col)}')
+               Cols.append(col)
+            J    = self.J(Cols)
+            #for i in range(ndof):
+            #    col = J[i,:]
+            #    print(f'norm of{i}-th row={n2(col)}')
+
+            #cond = np.linalg.cond(J)
+            #print('Cond #='+str(cond))
+            #print('shape='+str(J.shape))
+            #print('det ='+str(det(J))) 
+            #print('rank='+str(rank(J)))
+            delxm = spsolve(J,-Gxm)
+            #print(delxm)
+            #delxm, exitcode = gmres(J,-Gxm,tol=tol/10.0,atol=tol/10.0,x0=delxm)
+            #print(exitcode)
+            xm              = xm + delxm
+            Gxm             = G(xm)
+            nGxm            = n2(Gxm)
+            j               = j+1
+
+            #if exitcode>1E-5:
+            #    print('error ocurred, exitcode='+str(exitcode))
+        return xm
+
     #Third Attepmt
     def Newtoniter(self,G,x0,ndof,tol,maxiter,PDE,unx, uny,umx,umy,B,E,p):
         #This function will perform a Newton Iteration
@@ -41,7 +80,9 @@ class InexactNewtonTimeInt(object):
         #Within the tolerance tol in the 2-norm. ndof is the number of unknowns.
         xm     = x0
         delxm = 0.0 * xm
+        print('here2')
         Gxm    = G(x0)
+        print('here3')
         etamm1 = self.etamax
         nGxmm1 = 1
         epsa   = math.sqrt(ndof)*(10**(-15))
@@ -61,13 +102,15 @@ class InexactNewtonTimeInt(object):
             for i in range(ndof):
                col = self.ithCol(G,Gxm,xm,ndof,i)
                Cols.append(col)
+            
             J               = self.J(Cols)
             #print(J)
             #print('Number of Newton Iterations='+str(j))
-            print('shape='+str(J.shape))
-            print('det ='+str(det(J))) 
-            print('rank='+str(rank(J)))
+            #print('shape='+str(J.shape))
+            #print('det ='+str(det(J))) 
+            #print('rank='+str(rank(J)))
             j = j+1
+            
             # delxm, exitcode = gmres(J,-Gxm,tol=tol/10.0,atol=tol/10.0,x0=delxm)
             # #delxm, exitcode = gmres(DGxm,-Gxm,tol=tol/10.0,atol=tol/10.0,x0=delxm)
             # xm              = xm + delxm

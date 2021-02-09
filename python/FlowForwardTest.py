@@ -64,12 +64,13 @@ for MType in MTypes:
         Mesh = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
         dt = dx[i]**2
         PDE    = PDEFullMHD(Mesh,Re,Rm,exactu,InB,dt,theta)
-        PDE.SetFlowBC(exactu)
-        PDE.FlowComputeBC(0)
+        PDE.nSetFlowBC(exactu)
+        PDE.nFlowComputeBC(0)
         #PDE.unx,PDE.uny,PDE.umx,PDE.umy = PDE.FlowupdateBC(PDE.unx,PDE.uny,PDE.umx,PDE.umy)
         PDE.p = PDE.PhDOF(exactp)
-        y     = PDE.FlowG(PDE.FlowConcatenate())
-        ynx,yny,ymx,ymy,yp = PDE.Splity(y)
+        y     = PDE.nFlowG(PDE.FlowConcatenate())
+        ynx,yny,ymx,ymy,yp = PDE.nSplity(y)
+        print(yp)
         #err = PDE.TVhL2Norm(ynx,yny,ymx,ymy) v
         H1err = PDE.TVhH1Norm(ynx,yny,ymx,ymy)
 

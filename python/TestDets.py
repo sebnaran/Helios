@@ -86,7 +86,8 @@ for MType in MTypes:
         0.008787156237382746]
 
     if MType == 'Small':
-        ProcessedFiles = ['PTh=0.408248.txt','PTh=0.2.txt','PTh=0.101015.txt']
+        #ProcessedFiles = ['PTh=0.408248.txt','PTh=0.2.txt','PTh=0.101015.txt']
+        ProcessedFiles = ['PTh=0.101015.txt']
         dx = [0.408248,0.2,0.101015]
     i = 0
     for Pfile in ProcessedFiles:
@@ -97,6 +98,7 @@ for MType in MTypes:
         pL.append(Pfile)
         Nodes,EdgeNodes,ElementEdges,BoundaryNodes,Orientations = ProcessedMesh(Pfile)
         Mesh = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
+        print(Mesh.NumInternalNodes)
         dt = 0.00005*dx[i]**2
         PDE    = PDEFullMHD(Mesh,Re,Rm,Inu,InB,dt,theta)
         PDE.SetMHDBCandSource(exactu,exactE,f,h)
@@ -118,6 +120,7 @@ for MType in MTypes:
             PDE.MHDComputeSources(t)
             unx,uny,umx,umy,B,E,p = PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p
             unx,uny,umx,umy,E = PDE.MHDUpdateBC(unx,uny,umx,umy,E)
+            print('here1')
             tempx = Solver.Newtoniter(PDE.MHDG,PDE.MHDConcatenate(PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p),PDE.SetNumMHDDof(),1E-4,5,PDE,unx,uny,umx,umy,B,E,p)
             #print('time='+str(end-start))
             PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p = PDE.MHDUpdateInt(tempx,PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.B,PDE.E,PDE.p)
