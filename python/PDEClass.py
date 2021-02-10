@@ -790,14 +790,6 @@ class PDEFullMHD(object):
     def nSetFlowBC(self,ub):
         self.ub = ub  #source terms and BC
 
-    def nFlowupdatef(self,t):
-        def dummyf(xv):
-            return self.f([xv[0],xv[1],t+self.theta*self.dt])
-        tempfn             = self.NodalDOFs(dummyf,self.Mesh.Nodes)
-        self.fnx,self.fny  = self.DecompIntoCoord(tempfn)
-        tempfm             = self.NodalDOFs(dummyf,self.Mesh.MidNodes)
-        self.fmx, self.fmy = self.DecompIntoCoord(tempfm)
-
     def nFlowComputeBC(self,t):
         def dummyub(xv):
             return self.ub([xv[0],xv[1],t+self.dt])
@@ -819,23 +811,36 @@ class PDEFullMHD(object):
             j = j+1
         return unx,uny,umx,umy
 
-    def nFlowUpdateUnknownDOFs(self,x):
-        intN  = len(self.Mesh.NumInternalNodes) #Number of internal dofs for ux
-        intBN = len(self.Mesh.NumInternalMidNodes)
-        Cutx  = np.split(x,[intN,2*intN,2*intN+intBN,2*intN+2*intBN])
+    def nFlowUpdateUnknownDOFs(self,x,unx,uny,umx,umy,p):
+        cut1 = len(self.Mesh.NumInternalNodes) #Number of internal dofs for ux
+        cut2 = 2*cut1                          #Number of internal dofs for uy
+        cut3 = cut2+len(self.Mesh.NumInternalMidNodes)                #Number of internal dofs for umx
+        cut4 = cut3+len(self.Mesh.NumInternalMidNodes)                #Number of internal dofs for umy 
+        Cutx = np.split(x,[cut1,cut2,cut3,cut4])
+
+        runx,runy = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+        rumx,rumy = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+        rp        = np.zeros((len(self.Mesh.ElementEdges)))
+        
+        for i in self.Mesh.NumBoundaryNodes:
+            runx[i] = unx[i]
+            runy[i] = uny[i]
+        for i in self.Mesh.NumBMidNodes:
+            rumx[i] = umx[i]
+            rumy[i] = umy[i]
         j = 0
         for i in self.Mesh.NumInternalNodes:
-            self.unx[i] = Cutx[0][j]
-            self.uny[i] = Cutx[1][j]
+            runx[i] = Cutx[0][j]
+            runy[i] = Cutx[1][j]
             j = j+1
         j = 0
         for i in self.Mesh.NumInternalMidNodes:
-            self.umx[i] = Cutx[2][j]
-            self.umy[i] = Cutx[3][j]
+            rumx[i] = Cutx[2][j]
+            rumy[i] = Cutx[3][j]
             j = j+1
-
-        self.p[0:len(self.p)-1] = Cutx[4]
-        self.p[len(self.p)-1]   = -np.sum(self.p[0:len(self.p)-1])
+        rp[0:len(rp)-1]   = Cutx[4]
+        rp[len(rp)-1]     = -np.sum(rp[0:len(rp)-1])
+        return runx,runy,rumx,rumy,rp
 
     def nFlowG(self,x):
         unx,uny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
@@ -857,6 +862,7 @@ class PDEFullMHD(object):
             j = j+1
 
         p[0:len(p)-1]   = Cutx[4]
+
         p[len(p)-1]     = -np.sum(p[0:len(p)-1])
         unx,uny,umx,umy = self.nFlowupdateBC(unx,uny,umx,umy)
         y = np.zeros((len(x)),dtype=float) 

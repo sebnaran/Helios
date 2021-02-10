@@ -51,34 +51,46 @@ for MType in MTypes:
         Nodes,EdgeNodes,ElementEdges,BoundaryNodes,Orientations = ProcessedMesh(Pfile)
         Mesh = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
         dt = dx[i]**2
-        print('Computing Solution')
-        print(f'NumCells={len(Mesh.ElementEdges)}')
         PDE    = PDEFullMHD(Mesh,Re,Rm,Inu,InB,dt,theta)
         PDE.nSetFlowBC(ub)
         Solver = InexactNewtonTimeInt()
         t = 0
         PDE.nFlowComputeBC(t)
-        tempx = Solver.FlowSolve(PDE.nFlowG,PDE.nFlowConcatenate(),PDE.nNumFlowDOF(),50,1E-10)
-        PDE.nFlowUpdateUnknownDOFs(tempx)
+        #tempx = PDE.nFlowConcatenate()
+        #for i in range(len(tempx)):
+        #    tempx[i] = i+1
+        #tempx[0] = 0.024031434275685715
+        tempx = Solver.FlowSolve(PDE.nFlowG,PDE.nFlowConcatenate(),PDE.nNumFlowDOF(),50,1E-5)
+        PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.p = PDE.nFlowUpdateUnknownDOFs(tempx,PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.p)
+        #print(f'G(tempx)={PDE.nFlowG(tempx)}')
+        tempx2 = PDE.nFlowConcatenate()
+        #print(f'G(tempx2)={PDE.nFlowG(tempx2)}')
+        #print(f'lentempx ={len(tempx)}')
+        #print(f'lentempx2={len(tempx2)}')
+        for k in range(len(tempx)):
+            if abs(tempx[k]-tempx2[k])>1e-5:
+                print(k)
+        print(f'numintnodes={len(Mesh.NumInternalNodes)}')
+        print(f'Els={len(Mesh.ElementEdges)}')
+        print(f'nummidintnodes={len(Mesh.NumInternalMidNodes)}')
+
+        #print(f'tempx[0]={tempx[0]}')
+        #print(f'tempx1={tempx}')
+        #print(tempx)
+        #PDE.unx,PDE.uny,PDE.umx,PDE.umy       = PDE.nFlowupdateBC(PDE.unx,PDE.PDE.uny,PDE.umx,PDE.umy)
+        #
+        #print(f'AfterFuncunx[j=0]={PDE.unx[Mesh.NumInternalNodes[0]]}')
+        #print(f'tempx2={tempx}')
+        #print(f'tempx[0]={tempx[0]}')
+        #print(f'unx[int]={PDE.unx[Mesh.NumInternalNodes[0]]}')
+
        #if np.all(tempx,PDE.nFlowConcatenate()):
-        PDE.nSetFlowBC(ub)
-        Solver = InexactNewtonTimeInt()
         t = 0
         PDE.unx,PDE.uny,PDE.umx,PDE.umy = PDE.nFlowupdateBC(PDE.unx,PDE.uny,PDE.umx,PDE.umy)
 
         def exactu(xv):
             return np.array([xv[1]**2,xv[0]**2])
-        print(f'numdof={PDE.nNumFlowDOF()}')
-        print(f'Evaltempx={PDE.nFlowG(tempx)}')
-        tempx2 = PDE.nFlowConcatenate()
-        print(f'EvalConcat={PDE.nFlowG(tempx2)}')
-        j = 0
-        for i in range(len(tempx)):
-            if abs(tempx[i]-tempx2[i])>1e-5:
-                j = j+1
-        print(j)
-        print(f'lentempx={len(tempx)}')
-        print(f'lentempx2={len(tempx2)}')
+
         tempun     = PDE.NodalDOFs(exactu,PDE.Mesh.Nodes)
         eunx,euny  = PDE.DecompIntoCoord(tempun)
         tempum     = PDE.NodalDOFs(exactu,PDE.Mesh.MidNodes)
@@ -93,22 +105,8 @@ for MType in MTypes:
             return 2*xv[0]+2*xv[1]
 
         exph = PDE.PhDOF(exactp)
-        for cell in range(len(Mesh.ElementEdges)):
-            lunx2 ,luny2 ,lumx2 ,lumy2  = PDE.GetLocalTVhDOF(cell,PDE.unx,PDE.uny,PDE.umx,PDE.umy)
-            Divu2,A2                    = PDE.DIVu(cell,lunx2,luny2,lumx2,lumy2)
-            if abs(Divu2)>1e-5:
-                print(f'Cell={cell}')
-                print(f'Div={Divu2}')
-                Cell = Mesh.ElementEdges[cell]
-                for e in Cell:
-                    edge = Mesh.EdgeNodes[e]
-                    node1,node2 = edge[0],edge[1]
-                    x0,y0,x1,y1 = Mesh.Nodes[node1][0],Mesh.Nodes[node1][1],Mesh.Nodes[node2][0],Mesh.Nodes[node2][1]
-                    print(f'x_0={x0}')
-                    print(f'y_0={y0}')
-                    print(f'x_1={x1}')
-                    print(f'y_1={y1}')
         parr = exph-PDE.p
         perr = PDE.PhL2Norm(parr)
         print('pErr = '+str(perr))
-        print('uErr = '+str(uL2err))    
+        print('uErr = '+str(uL2err))   
+        i = i+1 
