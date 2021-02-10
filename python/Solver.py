@@ -44,7 +44,7 @@ class InexactNewtonTimeInt(object):
         j = 0
 
         while nGxm>tol and j<maxiter:
-            print('ngxm='+str(nGxm))
+            #print('ngxm='+str(nGxm))
             Cols   = []
             for i in range(ndof):
                col = self.ithCol(G,Gxm,xm,ndof,i)
@@ -55,11 +55,12 @@ class InexactNewtonTimeInt(object):
             #    col = J[i,:]
             #    print(f'norm of{i}-th row={n2(col)}')
 
-            #cond = np.linalg.cond(J)
+            cond = np.linalg.cond(J)
             #print('Cond #='+str(cond))
             #print('shape='+str(J.shape))
             #print('det ='+str(det(J))) 
             #print('rank='+str(rank(J)))
+
             delxm = spsolve(J,-Gxm)
             #print(delxm)
             #delxm, exitcode = gmres(J,-Gxm,tol=tol/10.0,atol=tol/10.0,x0=delxm)

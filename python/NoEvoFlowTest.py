@@ -13,13 +13,18 @@ def ProcessedMesh(Pfile):
 Re,Rm,theta   = 1, 1, 0.5
 T                = 0.25
 MTypes = ['Trig','Quad','Vor']
+def f(xv):
+    y1 = -math.cos(xv[1])+math.exp(t)*math.cos(xv[1])
+    y2 = xv[0]*math.sin(xv[1])
+    return np.array([y1,y2])
 def InB(xv):
     return np.array([0,math.cos(xv[0])])
 def Inu(xv):
     #return np.array([0.95*xv[1]**2,0.95*xv[0]**2])
     return np.array([0,0])
 def ub(xv):
-    return np.array([xv[1]**2,xv[0]**2])
+    return np.array([math.exp(t)*math.cos(xv[1]),0])
+    #return np.array([xv[1]**2,xv[0]**2])
 
 def Eb(xvt):
     return math.cos(xvt[0]+xvt[2])
@@ -60,19 +65,21 @@ for MType in MTypes:
         #for i in range(len(tempx)):
         #    tempx[i] = i+1
         #tempx[0] = 0.024031434275685715
+        PDE.nFlowSetSource(f)
+        PDE.nFlowComputeSourceDOF()
         tempx = Solver.FlowSolve(PDE.nFlowG,PDE.nFlowConcatenate(),PDE.nNumFlowDOF(),50,1E-5)
         PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.p = PDE.nFlowUpdateUnknownDOFs(tempx,PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.p)
-        #print(f'G(tempx)={PDE.nFlowG(tempx)}')
+        print(f'G(tempx)={PDE.nFlowG(tempx)}')
         tempx2 = PDE.nFlowConcatenate()
-        #print(f'G(tempx2)={PDE.nFlowG(tempx2)}')
+        print(f'G(tempx2)={PDE.nFlowG(tempx2)}')
         #print(f'lentempx ={len(tempx)}')
         #print(f'lentempx2={len(tempx2)}')
-        for k in range(len(tempx)):
-            if abs(tempx[k]-tempx2[k])>1e-5:
-                print(k)
-        print(f'numintnodes={len(Mesh.NumInternalNodes)}')
-        print(f'Els={len(Mesh.ElementEdges)}')
-        print(f'nummidintnodes={len(Mesh.NumInternalMidNodes)}')
+        #for k in range(len(tempx)):
+        #    if abs(tempx[k]-tempx2[k])>1e-5:
+        #        print(k)
+        #print(f'numintnodes={len(Mesh.NumInternalNodes)}')
+        #print(f'Els={len(Mesh.ElementEdges)}')
+        #print(f'nummidintnodes={len(Mesh.NumInternalMidNodes)}')
 
         #print(f'tempx[0]={tempx[0]}')
         #print(f'tempx1={tempx}')
@@ -89,7 +96,8 @@ for MType in MTypes:
         PDE.unx,PDE.uny,PDE.umx,PDE.umy = PDE.nFlowupdateBC(PDE.unx,PDE.uny,PDE.umx,PDE.umy)
 
         def exactu(xv):
-            return np.array([xv[1]**2,xv[0]**2])
+            return np.array([math.exp(t)*math.cos(xv[1]),0])
+            #return np.array([xv[1]**2,xv[0]**2])
 
         tempun     = PDE.NodalDOFs(exactu,PDE.Mesh.Nodes)
         eunx,euny  = PDE.DecompIntoCoord(tempun)
@@ -102,11 +110,14 @@ for MType in MTypes:
 
         uL2err = PDE.TVhL2Norm(errunx,erruny,errumx,errumy)
         def exactp(xv):
-            return 2*xv[0]+2*xv[1]
+            return -xv[0]*math.cos(xv[1])
+            #return 2*xv[0]+2*xv[1]
 
         exph = PDE.PhDOF(exactp)
         parr = exph-PDE.p
         perr = PDE.PhL2Norm(parr)
+        print(f'sumexp={np.sum(exph)}')
+        print(f'sumPDEp={np.sum(PDE.p)}')
         print('pErr = '+str(perr))
         print('uErr = '+str(uL2err))   
         i = i+1 
