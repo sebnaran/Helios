@@ -55,7 +55,7 @@ class InexactNewtonTimeInt(object):
             #    col = J[i,:]
             #    print(f'norm of{i}-th row={n2(col)}')
 
-            cond = np.linalg.cond(J)
+            #cond = np.linalg.cond(J)
             #print('Cond #='+str(cond))
             #print('shape='+str(J.shape))
             #print('det ='+str(det(J))) 
@@ -69,6 +69,8 @@ class InexactNewtonTimeInt(object):
             Gxm             = G(xm)
             nGxm            = n2(Gxm)
             j               = j+1
+
+            #print('ngxm='+str(nGxm))
 
             #if exitcode>1E-5:
             #    print('error ocurred, exitcode='+str(exitcode))
