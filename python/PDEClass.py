@@ -614,7 +614,7 @@ class PDEFullMHD(object):
                 #UseForOldDisc
                 #RTBthetanx,RTBthetany = self.PiRTBn(locBtheta,Cell)
 
-                locunthetax,locunthetay, locumthetax,locumthetay = self.GetLocalTVhDOF(Cell,unthetax,unthetay,umthetax,umthetay)
+                locunthetax,locunthetay,locumthetax,locumthetay = self.GetLocalTVhDOF(Cell,unthetax,unthetay,umthetax,umthetay)
                 #UseForNewDisc
                 RTBthetanx,RTBthetany,RTBthetamx,RTBthetamy,locEm = self.PiRTBnm(locBtheta,E,Cell)
                 
@@ -772,7 +772,249 @@ class PDEFullMHD(object):
         farf    = np.zeros((len(self.Mesh.EdgeNodes)),dtype=float)
         h       = np.zeros((len(self.Mesh.Nodes)),dtype=float)
         return self.MHDUpdateInt(y,fnx,fny,fmx,fmy,farf,h,divf)
+    ##########################################################################################
+    ##########################################################################################
+    def MHDFlowConcatenate(self):
+        #This function returns an array that concatenates all the unknowns
+        intunx = [self.unx[i] for i in self.Mesh.NumInternalNodes]
+        intuny = [self.uny[i] for i in self.Mesh.NumInternalNodes]
+        intumx = [self.umx[i] for i in self.Mesh.NumInternalMidNodes]
+        intumy = [self.umy[i] for i in self.Mesh.NumInternalMidNodes]
+        tempp  = self.p[0:len(self.p)-1]
+        return np.concatenate((intunx,intuny,intumx,intumy,tempp), axis=None)
 
+    def MHDNumFlowDOF(self):
+        return 2*len(self.Mesh.NumInternalNodes)+2*len(self.Mesh.NumInternalMidNodes)+len(self.Mesh.ElementEdges)-1
+
+    def MHDsetElecMagField(self,B,E):
+        self.B,self.E = B, E
+
+    def ComputeElecMagDOF(self,t):
+        def dummyB(xv):
+            return self.B(xv,t+self.theta*self.dt)
+        def dummyE(xv):
+            return self.E(xv,t+self.theta*self.dt)
+        self.Endof = self.NodalDOFs(dummyE,self.Mesh.Nodes)
+        self.Emdof = self.NodalDOFs(dummyE,self.Mesh.MidNodes)
+        tempBn             = self.NodalDOFs(dummyB,self.Mesh.Nodes)
+        self.Bnx,self.Bny  = self.DecompIntoCoord(tempBn)
+        tempBm             = self.NodalDOFs(dummyB,self.Mesh.MidNodes)
+        self.Bmx,self.Bmy  = self.DecompIntoCoord(tempBm)
+    
+    def MHDFlowupdatef(self,t):
+        def dummyf(xv):
+            return self.f(xv,t+self.theta*self.dt)
+        tempfn             = self.NodalDOFs(dummyf,self.Mesh.Nodes)
+        self.fnx,self.fny  = self.DecompIntoCoord(tempfn)
+        tempfm             = self.NodalDOFs(dummyf,self.Mesh.MidNodes)
+        self.fmx, self.fmy = self.DecompIntoCoord(tempfm)
+
+    def MHDFlowUpdateInt(self,x,unx,uny,umx,umy,p):
+        cut1 = len(self.Mesh.NumInternalNodes) #Number of internal dofs for ux
+        cut2 = 2*cut1                          #Number of internal dofs for uy
+        cut3 = cut2+len(self.Mesh.NumInternalMidNodes)                #Number of internal dofs for umx
+        cut4 = cut3+len(self.Mesh.NumInternalMidNodes)                #Number of internal dofs for umy 
+        Cutx = np.split(x,[cut1,cut2,cut3,cut4])
+        runx,runy = np.zeros((len(self.Mesh.Nodes)),dtype =float),np.zeros((len(self.Mesh.Nodes)),dtype =float)
+        rumx,rumy = np.zeros((len(self.Mesh.MidNodes)),dtype =float),np.zeros((len(self.Mesh.MidNodes)),dtype =float)
+        rp        = np.zeros((len(self.Mesh.ElementEdges)),dtype =float)
+        #
+        for i in self.Mesh.NumBoundaryNodes:
+            runx[i] = unx[i]
+            runy[i] = uny[i]
+        for i in self.Mesh.NumBMidNodes:
+            rumx[i] = umx[i]
+            rumy[i] = umy[i]
+        j = 0
+        for i in self.Mesh.NumInternalNodes:
+            runx[i] = Cutx[0][j]
+            runy[i] = Cutx[1][j]
+            j = j+1
+        j = 0
+        for i in self.Mesh.NumInternalMidNodes:
+            #print(f'Cutx[2][j]={Cutx[2][j]}')
+            rumx[i] = Cutx[2][j]
+            #print(f'rumx[i]={rumx[i]}')
+            rumy[i] = Cutx[3][j]
+            j = j+1
+        rp[0:len(rp)-1]   = Cutx[4]
+        rp[len(rp)-1]     = -np.sum(p[0:len(p)-1])
+        return runx,runy,rumx,rumy,rp
+
+    def MHDFlowUpdateBC(self,unx,uny,umx,umy):
+        runx,runy = np.zeros((len(self.Mesh.Nodes)),dtype =float),np.zeros((len(self.Mesh.Nodes)),dtype =float)
+        rumx,rumy = np.zeros((len(self.Mesh.MidNodes)),dtype =float),np.zeros((len(self.Mesh.MidNodes)),dtype =float)
+        rp        = np.zeros((len(self.Mesh.ElementEdges)),dtype =float)
+        
+        for i in self.Mesh.NumInternalNodes:
+            runx[i] = unx[i]
+            runy[i] = uny[i]
+
+        for i in self.Mesh.NumInternalMidNodes:
+            rumx[i] = umx[i]
+            rumy[i] = umy[i]
+
+        j = 0
+        for i in self.Mesh.NumBoundaryNodes:
+            runx[i] = self.ubnx[j]
+            runy[i] = self.ubny[j]
+            j      = j+1
+
+        j = 0
+        for i in self.Mesh.NumBMidNodes:
+            rumx[i] = self.ubmx[j]
+            rumy[i] = self.ubmy[j]
+            j      = j+1
+        return runx,runy,rumx,rumy
+
+    def MHDSetFlowBCandSource(self,ub,f):
+        self.ub,self.f = ub,f
+        
+    def GetElectricMid(self,ElementNumber,Em):
+        Element = self.Mesh.ElementEdges[ElementNumber]
+        V,E     = self.Mesh.StandardElement(Element,self.Mesh.Orientations[ElementNumber])
+        N       = len(Element)
+        
+        lEm    = np.zeros((N),dtype=float)
+        for i in range(len(E)-1):
+            Edge    = Element[i]
+            lEm[i]  = Em[Edge]
+        return lEm
+
+    def MHDFlowComputeBC(self,t):
+        def dummyub(xv):
+            return self.ub(xv,t+self.dt)
+        tempubn              = self.NodalDOFs(dummyub,self.Mesh.BNodes)
+        self.ubnx, self.ubny = self.DecompIntoCoord(tempubn)
+        tempum               = self.NodalDOFs(dummyub,self.Mesh.BMidNodes)
+        self.ubmx, self.ubmy = self.DecompIntoCoord(tempum)
+
+    def MHDFlowG(self,x):
+        unp1x,unp1y = np.zeros((len(self.Mesh.Nodes)),dtype =float),np.zeros((len(self.Mesh.Nodes)),dtype =float)
+        ump1x,ump1y = np.zeros((len(self.Mesh.MidNodes)),dtype =float),np.zeros((len(self.Mesh.MidNodes)),dtype =float)
+        p           = np.zeros((len(self.Mesh.ElementEdges)),dtype =float)
+        unp1x,unp1y,ump1x,ump1y,p = self.FlowUpdateInt(x,unp1x,unp1y,ump1x,ump1y,p)
+        unp1x,unp1y,ump1x,ump1y   = self.FlowUpdateBC(unp1x,unp1y,ump1x,ump1y)
+        #p = self.dt*p
+        intN  = len(self.Mesh.NumInternalNodes) 
+        intMN = len(self.Mesh.NumInternalMidNodes)
+
+        nx      = (unp1x-self.unx)/self.dt - self.fnx
+        ny      = (unp1y-self.uny)/self.dt - self.fny
+        mx      = (ump1x-self.umx)/self.dt - self.fmx
+        my      = (ump1y-self.umy)/self.dt - self.fmy
+        unthetax = (1-self.theta)*self.unx+self.theta*unp1x 
+        unthetay = (1-self.theta)*self.uny+self.theta*unp1y
+        umthetax = (1-self.theta)*self.umx+self.theta*ump1x 
+        umthetay = (1-self.theta)*self.umy+self.theta*ump1y
+        
+        y = np.zeros((len(x)),dtype=float) 
+        k = 0 
+        for i in self.Mesh.NumInternalNodes:
+            Cells = self.Mesh.NodestoCells[i]
+            v1nx,v1ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+            v1mx,v1my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+            v1nx[i]   = 1
+            
+            v2nx,v2ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+            v2mx,v2my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+            v2ny[i]   = 1
+            for Cell in Cells:
+                luntx ,lunty ,lumtx ,lumty  = self.GetLocalTVhDOF(Cell,unthetax,unthetay,umthetax,umthetay)
+                lnx ,lny ,lmx ,lmy          = self.GetLocalTVhDOF(Cell,nx,ny,mx,my)
+                lv1nx,lv1ny,lv1mx,lv1my     = self.GetLocalTVhDOF(Cell,v1nx,v1ny,v1mx,v1my)
+                lv2nx,lv2ny,lv2mx,lv2my     = self.GetLocalTVhDOF(Cell,v2nx,v2ny,v2mx,v2my)
+                locEn = self.GetLocalVhDOF(Cell,self.Endof)
+                locEm = self.GetElectricMid(self,Cell,self.Emdof)
+                Jn    = locEn+self.Cross2Dto1D(luntx,lunty,self.Bnx,self.Bny)
+                Jm    = locEm+self.Cross2Dto1D(lumtx,lumty,self.Bmx,self.Bmy)
+                JxBnx,JxBny = self.Cross1Dto2D(Jn,self.Bnx,self.Bny)
+                JxBmx,JxBmy = self.Cross1Dto2D(Jm,self.Bmx,self.Bmy)
+
+                divv1,A = self.DIVu(Cell,lv1nx,lv1ny,lv1mx,lv1my)
+                y[k]  = y[k]+\
+                    self.TVhInProd(Cell,lnx,lny,lmx,lmy,lv1nx,lv1ny,lv1mx,lv1my)+\
+                    (1/self.Re)*self.TVhSemiInProd(Cell,luntx,lunty,lumtx,lumty,lv1nx,lv1ny,lv1mx,lv1my)-self.PhInProd(Cell,p[Cell],divv1*A)\
+                    -self.TVhInProd(Cell,JxBnx,JxBny,JxBmx,JxBmy,lv1nx,lv1ny,lv1mx,lv1my)
+
+                divv2,A      = self.DIVu(Cell,lv2nx,lv2ny,lv2mx,lv2my)
+                y[k+intN]  = y[k+intN]+\
+                    self.TVhInProd(Cell,lnx,lny,lmx,lmy,lv1nx,lv1ny,lv1mx,lv1my)+\
+                        (1/self.Re)*self.TVhSemiInProd(Cell,luntx,lunty,lumtx,lumty,lv2nx,lv2ny,lv2mx,lv2my)-self.PhInProd(Cell,p[Cell],divv2*A)\
+                        -self.TVhInProd(Cell,JxBnx,JxBny,JxBmx,JxBmy,lv2nx,lv2ny,lv2mx,lv2my)
+            k = k+1
+        k = 0
+        for i in self.Mesh.NumInternalMidNodes:
+            Cells = self.Mesh.EdgestoCells[i]
+            v1nx,v1ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+            v1mx,v1my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+            v1mx[i]   = 1
+            
+            v2nx,v2ny = np.zeros((len(self.Mesh.Nodes))),np.zeros((len(self.Mesh.Nodes)))
+            v2mx,v2my = np.zeros((len(self.Mesh.MidNodes))),np.zeros((len(self.Mesh.MidNodes)))
+            v2my[i]   = 1
+            for Cell in Cells:
+                
+                luntx ,lunty ,lumtx ,lumty  = self.GetLocalTVhDOF(Cell,unthetax,unthetay,umthetax,umthetay)
+                lnx ,lny ,lmx ,lmy          = self.GetLocalTVhDOF(Cell,nx,ny,mx,my)
+                lv1nx,lv1ny,lv1mx,lv1my = self.GetLocalTVhDOF(Cell,v1nx,v1ny,v1mx,v1my)
+                lv2nx,lv2ny,lv2mx,lv2my = self.GetLocalTVhDOF(Cell,v2nx,v2ny,v2mx,v2my)
+                locEn = self.GetLocalVhDOF(Cell,self.Endof)
+                locEm = self.GetElectricMid(self,Cell,self.Emdof)
+                Jn    = locEn+self.Cross2Dto1D(luntx,lunty,self.Bnx,self.Bny)
+                Jm    = locEm+self.Cross2Dto1D(lumtx,lumty,self.Bmx,self.Bmy)
+                JxBnx,JxBny = self.Cross1Dto2D(Jn,self.Bnx,self.Bny)
+                JxBmx,JxBmy = self.Cross1Dto2D(Jm,self.Bmx,self.Bmy)
+                
+                divv1,A       = self.DIVu(Cell,lv1nx,lv1ny,lv1mx,lv1my)
+                y[k+2*intN] = y[k+2*intN]+\
+                    self.TVhInProd(Cell,lnx,lny,lmx,lmy,lv1nx,lv1ny,lv1mx,lv1my)+\
+                    (1/self.Re)*self.TVhSemiInProd(Cell,luntx,lunty,lumtx,lumty,lv1nx,lv1ny,lv1mx,lv1my)-self.PhInProd(Cell,p[Cell],divv1*A)\
+                    -self.TVhInProd(Cell,JxBnx,JxBny,JxBmx,JxBmy,lv1nx,lv1ny,lv1mx,lv1my)
+
+                divv2,A             = self.DIVu(Cell,lv2nx,lv2ny,lv2mx,lv2my)
+                y[k+2*intN+intMN] = y[k+2*intN+intMN]+\
+                    self.TVhInProd(Cell,lnx,lny,lmx,lmy,lv1nx,lv1ny,lv1mx,lv1my)+\
+                    (1/self.Re)*self.TVhSemiInProd(Cell,luntx,lunty,lumtx,lumty,lv2nx,lv2ny,lv2mx,lv2my)-self.PhInProd(Cell,p[Cell],divv2*A)\
+                    -self.TVhInProd(Cell,JxBnx,JxBny,JxBmx,JxBmy,lv2nx,lv2ny,lv2mx,lv2my)
+            k = k+1
+        k = 0
+        last = len(self.Mesh.ElementEdges)-1
+        luntx2 ,lunty2 ,lumtx2 ,lumty2  = self.GetLocalTVhDOF(last,unthetax,unthetay,umthetax,umthetay)
+        Divu2,A2                        = self.DIVu(last,luntx2,lunty2,lumtx2,lumty2)
+        for i in range(len(self.Mesh.ElementEdges)-1):
+            
+            luntx ,lunty ,lumtx ,lumty  = self.GetLocalTVhDOF(i,unthetax,unthetay,umthetax,umthetay)
+            Divu,A                      = self.DIVu(i,luntx,lunty,lumtx,lumty)
+
+            y[k+2*intN+2*intMN]             = y[k+2*intN+2*intMN]+self.PhInProd(i,Divu*A,1)-self.PhInProd(last,Divu2*A2,1)
+            k = k+1
+        return y
+
+    def MHDFlowSplity(self,y):
+        intN  = len(self.Mesh.NumInternalNodes) #Number of internal dofs for ux
+        intBN = len(self.Mesh.NumInternalMidNodes)
+        Cuty  = np.split(y,[intN,2*intN,2*intN+intBN,2*intN+2*intBN])
+        ynx   = np.zeros(len(self.Mesh.Nodes))
+        yny   = np.zeros(len(self.Mesh.Nodes))
+        ymx   = np.zeros(len(self.Mesh.MidNodes))
+        ymy   = np.zeros(len(self.Mesh.MidNodes))
+        yp    = np.zeros(len(self.Mesh.ElementEdges))
+        j = 0
+        for i in self.Mesh.NumInternalNodes:
+            ynx[i] = Cuty[0][j]
+            yny[i] = Cuty[1][j]
+            j = j+1
+        j = 0
+        for i in self.Mesh.NumInternalMidNodes:
+            ymx[i] = Cuty[2][j]
+            ymy[i] = Cuty[3][j]
+            j = j+1
+
+        yp[0:len(yp)-1] = Cuty[4]
+        yp[len(yp)-1]   = -np.sum(yp[0:len(yp)-1])
+        return ynx,yny,ymx,ymy,yp
+ 
     ##########################################################################################
     ##########################################################################################
     def nFlowConcatenate(self):
@@ -971,6 +1213,21 @@ class PDEFullMHD(object):
     def NumFlowDOF(self):
         return 2*len(self.Mesh.NumInternalNodes)+2*len(self.Mesh.NumInternalMidNodes)+len(self.Mesh.ElementEdges)-1
 
+    def setElecMagField(self,B,E):
+        self.B,self.E = B, E
+
+    # def ComputeElecMagDOF(self,t):
+    #     def dummyB(xv):
+    #         return B(xv,t+self.theta*self.dt)
+    #     def dummyE(xv):
+    #         return E(xv,t+self.theta*self.dt)
+    #     self.Endof = self.NodalDOFs(dummyE,self.Mesh.Nodes)
+    #     self.Emdof = self.NodalDOFs(dummyE,self.Mesh.MidNodes)
+    #     tempBn             = self.NodalDOFs(dummyB,self.Mesh.Nodes)
+    #     self.Bnx,self.Bny  = self.DecompIntoCoord(tempBn)
+    #     tempBm             = self.NodalDOFs(dummyB,self.Mesh.MidNodes)
+    #     self.Bmx,self.Bmy  = self.DecompIntoCoord(tempBm)
+    
     def Flowupdatef(self,t):
         def dummyf(xv):
             return self.f(xv,t+self.theta*self.dt)
