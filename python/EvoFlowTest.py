@@ -11,9 +11,9 @@ def ProcessedMesh(Pfile):
         N,E,EE,B,O = pickle.load(fp)
     return N,E,EE,B,O
     
-Re,Rm,theta   = 1, 1, 1
+Re,Rm,theta   = 1, 1, 0.5
 T                = 0.001
-MTypes = ['Quad','Vor','Trig']
+MTypes = ['Trig','Quad','Vor']
 #MTypes = ['Small']
 def exactu(xv,t):
     return np.array([math.exp(t)*math.cos(xv[1]),0])
@@ -23,24 +23,23 @@ def exactE(xv,t):
     return math.cos(xv[0]+t)
 def exactp(xv,t):
     return -xv[0]*math.cos(xv[1])
-def InB(xv):
-    return exactB(xv,0)
-def InB(xv):
-    return exactB(xv,0)
-#WithElectromagnetics, theta=1/2
-#def f(xv,t):
-#    y1 = math.cos(t+xv[0])**2-math.cos(xv[1])+0.5*math.cos(t+xv[0])\
-#         +0.5*math.exp(1/1000)*math.cos(xv[1])*math.cos(xv[0]+t)**2
-#    y2 = xv[0]*math.sin(xv[1])
-#    return np.array([y1,y2])
+#WithourElectroDiscreteInTime
 def f(xv,t):
-    y1 = math.cos(1/1000+xv[0])**2\
-        -math.cos(xv[1])\
-        +math.exp(1/1000)*math.cos(xv[1])\
-        +math.exp(1/1000)*math.cos(xv[1])*math.cos(xv[0]+1/1000)**2\
-        +1000*(math.exp(1/1000)*math.cos(xv[1])-math.cos(xv[1]))
+    y1 = -math.cos(xv[1])+1000*(-math.cos(xv[1])+math.exp(1/1000)*math.cos(xv[1]))\
+         +(math.cos(xv[1])+math.exp(1/1000)*math.cos(xv[1]))
     y2 = xv[0]*math.sin(xv[1])
     return np.array([y1,y2])
+#WithoutElectromagnetics
+#def f(xv,t):
+#    y1 = -math.cos(xv[1]) + 2*math.exp(t)*math.cos(xv[1])
+#    y2 = xv[0]*math.sin(xv[1])
+#    return np.array([y1,y2])
+#WithElectromagnetics
+#def f(xv,t):
+#    y1 = math.cos(t+xv[0])**2-math.cos(xv[1])+2*math.exp(t)*math.cos(xv[1])\
+#         +math.exp(t)*math.cos(xv[1])*math.cos(t+xv[0])**2
+#    y2 = xv[0]*math.sin(xv[1])
+#    return np.array([y1,y2])
 def Inu(xv):
     return exactu(xv,0)
 def InB(xv):
@@ -77,12 +76,11 @@ for MType in MTypes:
         Mesh = HeliosMesh(Nodes,EdgeNodes,ElementEdges,Orientations)
         #dt   = 0.05*dx[i]**2
         #i    = i+1
+        #print(f'dt={dt}')
         #print(dt)
-        dt = 1/1000
+        dt = 0.001
         PDE    = PDEFullMHD(Mesh,Re,Rm,Inu,InB,dt,theta)
-        PDE.MHDSetFlowBCandSource(exactu,f)
-        PDE.MHDsetElecMagField(exactB,exactE)
-
+        PDE.SetFlowBCandSource(exactu,f)
         Solver = InexactNewtonTimeInt()
         time = [0]
         T    = dt
@@ -90,40 +88,22 @@ for MType in MTypes:
         #print(2*len(Mesh.NumInternalNodes)+2*len(Mesh.NumInternalMidNodes)+len(Mesh.ElementEdges)-1)
         #print(f'IntNodes={len(Mesh.NumInternalNodes)},IntMid={len(Mesh.NumInternalMidNodes)},Cells={len(Mesh.ElementEdges)}')
         #print(len(time))
-        tempx1 = PDE.MHDFlowConcatenate()
+        tempx = PDE.FlowConcatenate()
         for t in time:
-            PDE.MHDFlowComputeBC(t)
-            PDE.MHDFlowupdatef(t)
-            PDE.ComputeElecMagDOF(t)
-            PDE.MHDFlowupdatef(t)
-            unx,uny = np.zeros((len(Mesh.Nodes)),dtype =float),np.zeros((len(Mesh.Nodes)),dtype =float)
-            umx,umy = np.zeros((len(Mesh.MidNodes)),dtype =float),np.zeros((len(Mesh.MidNodes)),dtype =float)
-            p       = np.zeros((len(Mesh.ElementEdges)),dtype =float)
-            tempx = Solver.FlowSolve(PDE.MHDFlowG,tempx1,PDE.NumFlowDOF(),50,1E-5)
-            #print(f'tempx={tempx}')
+            PDE.FlowComputeBC(t)
+            PDE.Flowupdatef(t)
+            tempx = Solver.FlowSolve(PDE.FlowG,tempx,PDE.NumFlowDOF(),50,1E-5)
             #print(f'tempx[0]={tempx[0]}')
             #print(f'G(tempx)={PDE.FlowG(tempx)}')
             #print(f'n2G(tempx)={n2(PDE.FlowG(tempx))}')
-            unx,uny,umx,umy,p = PDE.MHDFlowUpdateInt(tempx,unx,uny,umx,umy,p)
+            PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.p = PDE.FlowUpdateInt(tempx,PDE.unx,PDE.uny,PDE.umx,PDE.umy,PDE.p)
             #print(f'asasan2G(tempx)={n2(PDE.FlowG(tempx))}')
-            #print('before adding boundary')
-            #for i in Mesh.NumInternalNodes:
-            #    print(f'unx[i]={unx[i]}')
-            unx,uny,umx,umy       = PDE.MHDFlowUpdateBC(unx,uny,umx,umy)
-            #print('after adding boundary')
-            #for i in Mesh.NumInternalNodes:
-            #    print(f'unx[i]={unx[i]}')
-            y     = PDE.MHDFlowG(PDE.MHDFloweConcatenate(unx,uny,umx,umy,p))
-            print(f'norm eval={n2(y)}')
-            #for e in range(len(Mesh.ElementEdges)):
-            #    lunxl ,lunyl ,lumxl ,lumyl = PDE.GetLocalTVhDOF(e,unx,uny,umx,umy)
-            #    Divul,Al                   = PDE.DIVu(e,lunxl,lunyl,lumxl,lumyl)
-            #    print(f'Divu[e={e}]={Divul}')
+            PDE.unx,PDE.uny,PDE.umx,PDE.umy       = PDE.FlowUpdateBC(PDE.unx,PDE.uny,PDE.umx,PDE.umy)
             #print(f'PDE.unx[j=0]={PDE.unx[Mesh.NumInternalNodes[0]]}')
-            #j = 0 
-            #tempx2 = PDE.FlowConcatenate()
-            #intN   = len(Mesh.NumInternalNodes)
-            #intMN  = len(Mesh.NumInternalMidNodes)
+            j = 0 
+            tempx2 = PDE.FlowConcatenate()
+            intN   = len(Mesh.NumInternalNodes)
+            intMN  = len(Mesh.NumInternalMidNodes)
             #for i in range(len(tempx)):
             #    print(tempx[i])
             #    print(tempx2[i])
@@ -141,25 +121,22 @@ for MType in MTypes:
             #print(f'n2G(tempx)={n2(PDE.FlowG(tempx))}')
         
         def exu(xv):
-            return exactu(xv,1/1000)
+            return exactu(xv,time[len(time)-1])
         def exp(xv):
-            return exactp(xv,1/1000)
+            return exactp(xv,0.5*time[len(time)-1]+0.5*time[len(time)-2])
         tempun     = PDE.NodalDOFs(exu,PDE.Mesh.Nodes)
         eunx,euny  = PDE.DecompIntoCoord(tempun)
         tempum     = PDE.NodalDOFs(exu,PDE.Mesh.MidNodes)
         eumx, eumy = PDE.DecompIntoCoord(tempum)
-        #print('exactu')
-        #for i in Mesh.NumInternalNodes:
-        #    print(f'PDE.unx[i]={eumx[i]}')
-        errunx = np.array(eunx)-np.array(unx)
-        erruny = np.array(euny)-np.array(uny)
-        errumx = np.array(eumx)-np.array(umx)
-        errumy = np.array(eumy)-np.array(umy)
+        errunx = np.array(eunx)-np.array(PDE.unx)
+        erruny = np.array(euny)-np.array(PDE.uny)
+        errumx = np.array(eumx)-np.array(PDE.umx)
+        errumy = np.array(eumy)-np.array(PDE.umy)
 
         uL2err = PDE.TVhL2Norm(errunx,erruny,errumx,errumy)
         exph = PDE.PhDOF(exp)
 
-        parr = exph-p
+        parr = exph-PDE.p
         perr = PDE.PhL2Norm(parr)
         print('pErr = '+str(perr))
         print('uErr = '+str(uL2err))

@@ -9,6 +9,7 @@ import numpy as np
 import math
 import time
 from scipy.sparse.linalg import spsolve
+from scipy import linalg
 
 def outside_func(par):
     obj,G,Gxm,xm,ndof,i = par
@@ -55,13 +56,19 @@ class InexactNewtonTimeInt(object):
             #    col = J[i,:]
             #    print(f'norm of{i}-th row={n2(col)}')
 
-            #cond = np.linalg.cond(J)
-            #print('Cond #='+str(cond))
+            cond = np.linalg.cond(J)
+            print('Cond #='+str(cond))
             #print('shape='+str(J.shape))
             #print('det ='+str(det(J))) 
             #print('rank='+str(rank(J)))
 
-            delxm = spsolve(J,-Gxm)
+            #delxm = spsolve(J,-Gxm)
+
+            delxm = linalg.solve(J, -Gxm)
+            #def fDGxm(delx):
+            #    return (G(xm+self.eps*delx)-Gxm)/(self.eps)
+            #DGxm  = LinearOperator((ndof,ndof), matvec = fDGxm)
+            #delxm, exitcode = gmres(DGxm,-Gxm,tol=tol/10.0,atol=tol/10.0,x0=delxm)
             #print(delxm)
             #delxm, exitcode = gmres(J,-Gxm,tol=tol/10.0,atol=tol/10.0,x0=delxm)
             #print(exitcode)
@@ -109,9 +116,9 @@ class InexactNewtonTimeInt(object):
             J               = self.J(Cols)
             #print(J)
             #print('Number of Newton Iterations='+str(j))
-            #print('shape='+str(J.shape))
-            #print('det ='+str(det(J))) 
-            #print('rank='+str(rank(J)))
+            print('shape='+str(J.shape))
+            print('det ='+str(det(J))) 
+            print('rank='+str(rank(J)))
             j = j+1
             
             # delxm, exitcode = gmres(J,-Gxm,tol=tol/10.0,atol=tol/10.0,x0=delxm)
